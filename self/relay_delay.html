@@ -1,16 +1,19 @@
+
 <!DOCTYPE html>
 <html>
 <head>
  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
- <title>Peer relay</title>
+ <title>Peer relay for delay</title>
 </head>
 <body>
  <button id="start_button" onclick="startVideo()">StartVideo</button>
  <button id="stop_button" onclick="stopVideo()">StopVideo</button>
  <button id="add_button" onclick="addPeer()">Add Peer</button>
  <br />
- <video id="local_video" width="240px" height="180px" autoplay="1" controls="1" style="border: 1px solid;"></video>
- <div id="container"></div>
+ <!-- <video id="local_video" width="240px" height="180px" autoplay="1" controls="1" style="border: 1px solid;"></video> -->
+ <div id="container">
+  <video id="local_video" width="160px" height="120px" autoplay="1" controls="1" style="border: 1px solid;"></video>
+ </div>
 </body>
 <script>
  navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
@@ -36,9 +39,6 @@
   connectPeer(srcPeer, destPeer, srcStream);
  }
 
- var audioBW = 32; // kbps
- var videoBW = 256; // kbps
-
  function connectPeer(srcPeer, destPeer, srcStream) {
   srcPeers.push(srcPeer);
   destPeers.push(destPeer);
@@ -56,8 +56,6 @@
        function(answer) {
         console.log('-- answer created --');
         console.log(answer);
-        //var sdp = setBandwidth(answer.sdp, audioBW, videoBW);
-        //answer.sdp = sdp;
         destPeer.setLocalDescription(answer,
          function() {
          },
@@ -111,8 +109,8 @@
   function addRemoteVideo(stream) {
    logStream('add remoteStream', stream);
    var newVideo = document.createElement('video');
-   newVideo.style.width = '320px';
-   newVideo.style.height = '240px';
+   newVideo.style.width = '160px';
+   newVideo.style.height = '120px';
    newVideo.style.border = '1px solid';
    newVideo.controls = "1";
    newVideo.volume = 0;
@@ -130,8 +128,6 @@
    function(offer) {
     console.log('-- offer created --');
     console.log(offer);
-    //var sdp = setBandwidth(offer.sdp, audioBW, videoBW);
-    //offer.sdp = sdp;
     peer1.setLocalDescription(offer,
      function() {
      },
@@ -164,13 +160,6 @@
     console.log(' track.id=' + track.id);
    }
   }
- }
-
- // kbps
- function setBandwidth(sdp, audioBandwidth, videoBandwidth) {
-    sdp = sdp.replace(/a=mid:audio\r\n/g, 'a=mid:audio\r\nb=AS:' + audioBandwidth + '\r\n');
-    sdp = sdp.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + videoBandwidth + '\r\n');
-    return sdp;
  }
 
  // Request the usermedia
