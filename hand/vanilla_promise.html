@@ -1,0 +1,353 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+<body>
+<p><input type="checkbox" id="with_audio">with audio</input>&nbsp;<button type="button" onclick="startVideo();">Start video</button> <button type="button" onclick="stopVideo();">Stop video</button> <button type="button" onclick="connect();">Connect</button> <button type="button" onclick="hangUp();">Hang Up</button></p>
+  <div>
+   <video id="local-video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
+   <video id="remote-video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
+  </div>
+<p>SDP to send:<br /> <textarea id="text-for-send-sdp" rows="5" cols="70" readonly="readonly">SDP to send</textarea></p>
+<p>SDP to receive:<br /> <textarea id="text-for-receive-sdp" rows="5" cols="70"></textarea><br /> <button type="button" onclick="onSDPText();">Receive SDP</button></p>
+</body>
+<script type="text/javascript">
+  var localVideo = document.getElementById('local-video');
+  var remoteVideo = document.getElementById('remote-video');
+  var localStream = null;
+  var peerConnection = null;
+  var peerStarted = false;
+  var mediaConstraints = {'mandatory': {'OfferToReceiveAudio':true, 'OfferToReceiveVideo':true }}; // old : Upper case
+  
+
+  // --- prefix -----
+  navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
+                            navigator.mozGetUserMedia || navigator.msGetUserMedia;
+  RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+  RTCSessionDescription = window.RTCSessionDescription || window.webkitRTCSessionDescription || window.mozRTCSessionDescription;
+
+  // for firefox
+  if (window.mozRTCPeerConnection) {
+    mediaConstraints = {'mandatory': {'offerToReceiveAudio':true, 'offerToReceiveVideo':true }}; // new: lower case, for firefox
+  }
+
+  // ----------------- handshake --------------
+  var textForSendSDP = document.getElementById('text-for-send-sdp');
+  var textToReceiveSDP = document.getElementById('text-for-receive-sdp');
+
+  function onSDPText() {
+    var text = textToReceiveSDP.value;
+    if (peerConnection) {
+      onAnswerText(text);
+    }
+    else {
+      onOfferText(text);
+    }
+    textToReceiveSDP.value ="";
+  }
+  
+  function onOfferText(text) {
+    console.log("Received offer text...")
+    setOfferText(text);
+  }
+  
+  function onAnswerText(text) {
+    console.log("Received answer text...")
+    setAnswerText(text);
+  }
+ 
+  function sendSDPText(text) {
+    console.log("---sending sdp text ---");	
+    textForSendSDP.value = text;
+    textForSendSDP.focus();
+    textForSendSDP.select();
+  }
+ 
+  // ---------------------- video handling -----------------------
+  function withAudioChecked() {
+    var inputElement = document.getElementById('with_audio');
+    var checked = inputElement.checked;
+    return checked;
+  }
+
+  function logStream(msg, stream) {
+    console.log(msg + ': id=' + stream.id);
+
+    var videoTracks = stream.getVideoTracks();
+    if (videoTracks) {
+      console.log('videoTracks.length=' + videoTracks.length);
+      for (var i = 0; i < videoTracks.length; i++) {
+        var track = videoTracks[i];
+        console.log('track.id=' + track.id);
+      }
+    }
+
+    var audioTracks = stream.getAudioTracks();
+    if (audioTracks) {
+      console.log('audioTracks.length=' + audioTracks.length);
+      for (var i = 0; i < audioTracks.length; i++) {
+        var track = audioTracks[i];
+        console.log('track.id=' + track.id);
+      }
+    }
+  }
+ 
+  // start local video
+  function startVideo() {
+    let withAudio = withAudioChecked();
+    navigator.mediaDevices.getUserMedia({video: true, audio: withAudio})
+    .then(function (stream) { // success
+      logStream('localStream', stream);
+      localStream = stream;
+      localVideo.srcObject = stream;
+      localVideo.play();
+      localVideo.volume = 0;
+    }).catch(function (error) { // error
+      console.error('getUserMedia error:', error);
+      return;
+    });
+  }
+
+  // stop local video
+  function stopVideo() {
+    localVideo.pause();
+    localVideo.srcObject = null;
+    stopLocalStream(localStream);
+  }
+
+  function stopLocalStream(stream) {
+    let tracks = stream.getTracks();
+    if (! tracks) {
+      console.warn('NO tracks');
+      return;
+    }
+    
+    for (let track of tracks) {
+      track.stop();
+    }
+  }
+
+
+  // ---------------------- connection handling -----------------------
+  function prepareNewConnection() {
+    var pc_config = {"iceServers":[]};
+    var peer = null;
+    try {
+      peer = new RTCPeerConnection(pc_config);
+    } catch (e) {
+      console.log("Failed to create peerConnection, exception: " + e.message);
+    }
+
+    // send any ice candidates to the other peer
+    peer.onicecandidate = function (evt) {
+      if (evt.candidate) {
+        console.log(evt.candidate);
+      } else {
+        console.log("empty ice event, send SDP now");
+        sendSDPText(peer.localDescription.sdp);
+      }
+    };
+
+    peer.oniceconnectionstatechange = function() {
+      console.log('ice connection status=' + peer.iceConnectionState + ' gahter=' + peer.iceGatheringState);
+      if ('completed' === peer.iceConnectionState) {
+        console.log("Connection complete");
+      }
+    };
+
+    peer.onicegatheringstatechange = function() {
+      console.log('ice gathering state=' + peer.iceGatheringState);
+    };
+
+    peer.onsignalingstatechange = function() {
+      console.log('signaling status=' + peer.signalingState);
+    };
+
+    peer.onnegotiationneeded = function(evt) {
+      console.log('onnegotiationneeded() evt:', evt);
+    };
+
+    /*
+    if (localStream) {
+      console.log('Adding local stream...');
+      peer.addStream(localStream);
+    }
+    else {
+      console.warn('no local stream, but continue.');
+    }
+    */
+
+    /*
+    peer.addEventListener("addstream", onRemoteStreamAdded, false);
+    peer.addEventListener("removestream", onRemoteStreamRemoved, false)
+
+    // when remote adds a stream, hand it on to the local video element
+    function onRemoteStreamAdded(event) {
+      console.log("Added remote stream");
+      logStream("remoteStream", event.stream);
+      if (event.stream.id === 'default') {
+        console.warn('remotestream.id=default, so skip');
+        return;
+      }
+      remoteVideo.src = window.URL.createObjectURL(event.stream);
+    }
+
+    // when remote removes a stream, remove it from the local video element
+    function onRemoteStreamRemoved(event) {
+      console.log("Remove remote stream");
+      logStream("remoteStream", event.stream);
+      remoteVideo.src = "";
+    }
+    */
+    
+    /*
+    peer.onaddstream = function(event) {
+      console.log("Added remote stream");
+      logStream("remoteStream", event.stream);
+      if (event.stream.id === 'default') {
+        console.warn('remotestream.id=default, so skip');
+        return;
+      }
+      remoteVideo.srcObject = event.stream;
+    };
+    */
+
+    peer.onremovestream = function(event) {
+      console.log("Remove remote stream");
+      logStream("remoteStream", event.stream);
+      remoteVideo.pause();
+      remoteVideo.srcObject = null;
+    };
+    
+    peer.ontrack = function(event) {
+      console.log('=== peer.ontrack() event:', event);
+      let stream = event.streams[0];
+      logStream("remoteStream", stream);
+      remoteVideo.srcObject = stream;
+    }
+
+    if (localStream) {
+      console.log('Adding local stream...');
+      peer.addStream(localStream);
+    }
+    else {
+      console.warn('no local stream, but continue.');
+    }
+
+    return peer;
+  }
+
+  function makeOffer() {
+    peerConnection = prepareNewConnection();
+    peerConnection.createOffer()
+    .then(function (sessionDescription) {
+      console.log('createOffer() succsess in promise');
+      return peerConnection.setLocalDescription(sessionDescription);
+    }).then(function() {
+      console.log('setLocalDescription() succsess in promise');
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+
+  function setOfferText(text) {
+    if (peerConnection) {
+      console.error('peerConnection alreay exist!');
+    }
+    peerConnection = prepareNewConnection();
+    var offer = new RTCSessionDescription({
+      type : 'offer',
+      sdp : text,
+    });
+    peerConnection.setRemoteDescription(offer,
+      function() {
+        console.log('setRemoteDescription(offer) succsess');
+        makeAnswer();
+      },
+      function(err) {
+        console.error('setRemoteDescription(offer) ERROR: ', err);
+      }
+    );
+  }
+  
+  function makeAnswer() {
+    console.log('sending Answer. Creating remote session description...' );
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+	
+    /*
+    peerConnection.createAnswer(function (sessionDescription) { // in case of success
+      peerConnection.setLocalDescription(sessionDescription,
+       function() {
+         console.log('setLocalDescription() succsess');
+       },
+       function(err) {
+         console.log('setLocalDescription() ERROR: ', err);
+       }
+      );
+      console.log("-- Create Answer SDP --");
+      console.log(sessionDescription);
+    }, function (err) { // in case of error
+      console.log("Create Answer failed:", err);
+    }, mediaConstraints);
+    */
+    
+    peerConnection.createAnswer()
+    .then(function (sessionDescription) {
+      console.log('createAnswer() succsess in promise');
+      return peerConnection.setLocalDescription(sessionDescription);
+    }).then(function() {
+      console.log('setLocalDescription() succsess in promise');
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+
+  function setAnswerText(text) {
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+    var answer = new RTCSessionDescription({
+      type : 'answer',
+      sdp : text,
+    });
+    peerConnection.setRemoteDescription(answer,
+      function() {
+        console.log('setRemoteDescription(answer) succsess');
+      },
+      function(err) {
+        console.error('setRemoteDescription(answer) ERROR: ', err);
+      }
+    );
+  }
+  
+  // -------- handling user UI event -----
+  // start the connection upon user request
+  function connect() {
+    if (!peerStarted) {
+      makeOffer();
+      peerStarted = true;
+    } else {
+      alert("peer already started.");
+    }
+  }
+
+  // stop the connection upon user request
+  function hangUp() {
+    console.log("Hang up.");
+    stop();
+  }
+
+  function stop() {
+    peerConnection.close();
+    peerConnection = null;
+    peerStarted = false;
+  }
+</script>
+</html>
+
+
