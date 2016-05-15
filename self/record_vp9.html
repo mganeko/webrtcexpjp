@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+ <title>Record VP9</title>
+</head>
+<body>
+ <h2>MediaRecorder VP9 for Chrome </h2>
+ <button id="start_button" onclick="startVideo()">StartVideo</button>
+ <button id="stop_button" onclick="stopVideo()">StopVideo</button>
+  
+ <button id="start_record_button" onclick="startRecording()">StartRecord</button>
+ <button id="stop_record_button" onclick="stopRecording()">StopRecord</button>
+  
+ <button id="play_button" onclick="playRecorded()">Play</button>
+ <a href="#" id="downloadlink" class="download">Download</a>
+
+ <br />
+ <video id="local_video" width="320px" height="240px" autoplay="1" style="border: 1px solid;"></video>
+ <video id="playback_video" width="320px" height="240px" autoplay="1" style="border: 1px solid;"></video>
+
+</body>
+<script>
+navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
+                           navigator.mozGetUserMedia || navigator.msGetUserMedia;
+window.RTCPeerConnection = ( window.webkitPeerConnection00 ||
+                             window.webkitRTCPeerConnection ||
+                             window.mozRTCPeerConnection);
+window.RTCIceCandidate = ( window.mozRTCIceCandidate ||
+                           window.RTCIceCandidate);
+
+var localVideo =  document.getElementById('local_video');
+var playbackVideo =  document.getElementById('playback_video');
+var anchor = document.getElementById('downloadlink');
+var localStream = null;
+var recorder =  null;
+var blobUrl = null;
+var chunks = [];
+
+
+function startRecording() {
+ if (! localStream) {
+  console.warn("no stream");
+  return;
+ }
+ if (recorder) {
+  console.warn("recorder already exist");
+  return;
+ }
+
+ //var options = {mimeType: 'video/webm, codecs=vp9'};
+ //var options = {mimeType: 'video/webm, codecs=vp8'};
+ var options;
+ if (MediaRecorder.isTypeSupported('video/webm; codecs=vp9')) {
+   options = {mimeType: 'video/webm; codecs=vp9'};
+ } else if (MediaRecorder.isTypeSupported('video/webm; codecs=vp8')) {
+   options = {mimeType: 'video/webm; codecs=vp8'};
+ }
+ 
+ //options = {mimeType: 'video/webm, codecs=vp8'}; // NG
+ //options = {mimeType: 'video/webm, codec=vp8'}; // NG
+ //options = {mimeType: 'video/webm; codec=vp8'}; // OK
+ //options = {mimeType: 'video/webm; codecs=vp8'}; // OK
+ //options = {mimeType: 'video/webm; codec=vp9'}; // OK // not effective
+ console.log(options);
+
+
+ recorder = new MediaRecorder(localStream, options);
+ //recorder = new MediaRecorder(localStream);
+ chunks = [];
+ recorder.ondataavailable = function(evt) {
+  console.log("data available: evt.data.type=" + evt.data.type);
+  chunks.push(evt.data);
+ };
+
+ recorder.onstop = function(evt) {
+  console.log('recorder.onstop() evt:', evt);
+ };
+
+ recorder.start(1000); // OK
+ // NG: recorder.start(5000);
+ // NG: recorder.start();
+ console.log("start recording");
+}
+
+function stopRecording() {
+ if (recorder) {
+  recorder.stop();
+  console.log("stop recording. playback");
+  recorder = null;
+  playRecorded();
+ }
+}
+
+function playRecorded() {
+ if (! blobUrl) {
+  var videoBlob = new Blob(chunks, { type: "video/webm" });
+  blobUrl = window.URL.createObjectURL(videoBlob);
+  anchor.download = 'recorded.webm';
+  anchor.href = blobUrl;
+ }
+
+
+ if (blobUrl) {
+  playbackVideo.src = blobUrl;
+  playbackVideo.onended = function() {
+   playbackVideo.pause();
+   playbackVideo.src = "";
+  };
+
+  playbackVideo.play();
+ }
+}
+
+// Request the usermedia
+function startVideo() {
+ navigator.getUserMedia({video: true, audio: true}, showMedia, errCallback);
+}
+ 
+function showMedia(stream) {
+ localStream  = stream;
+ localVideo.src = window.URL.createObjectURL(stream);
+}
+
+var errCallback = function(e) {
+ console.log('media error', e);
+};
+ 
+
+function stopVideo() {
+ if (localStream) {
+  localVideo.pause();
+  localVideo.src = "";
+
+  //localStream.stop();
+  stopStream(localStream);
+  localStream = null;
+ }
+}
+
+  function stopStream(stream) {
+    if (!stream) {
+      console.warn('NO stream');
+      return;
+    }
+    
+    var tracks = stream.getTracks();
+    if (! tracks) {
+      console.warn('NO tracks');
+      return;
+    }
+
+    for (index in tracks) {
+      tracks[index].stop();
+    } 
+  }  
+
+</script>
+</html>
