@@ -1,0 +1,310 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+ <title>Record with bandwidth</title>
+</head>
+<body>
+ <button id="start_button" onclick="startVideo()">StartVideo</button>
+ <button id="stop_button" onclick="stopVideo()">StopVideo</button>
+ <button id="add_button" onclick="addPeer()">Add Peer</button>
+ <span>  </span>
+ <button id="start_record_button" onclick="startRecording(0)">StartRecord0</button>
+ <button id="start_record_button" onclick="startRecording(1)">StartRecord1</button>
+ <button id="start_record_button" onclick="startRecording(2)">StartRecord2</button>
+ <button id="start_record_button" onclick="startRecording(index)">StartRecordLast</button>
+ <button id="stop_record_button" onclick="stopRecording()">StopRecord</button>
+ <a href="#" id="downloadlink" class="download">Download</a>
+ <br />
+ <video id="local_video" width="240px" height="180px" autoplay="1" controls="1" style="border: 1px solid;"></video>
+ <video id="playback_video" width="240px" height="180px" autoplay="1" style="border: 1px solid;"></video>
+ <div id="container"></div>
+</body>
+<script>
+ navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
+                           navigator.mozGetUserMedia || navigator.msGetUserMedia;
+ window.RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+ window.RTCIceCandidate = window.RTCIceCandidate || window.mozRTCIceCandidate || window.RTCIceCandidate;
+
+ var localVideo = document.getElementById('local_video');
+ var videoContainer = document.getElementById('container');
+
+ var srcPeers = new Array();
+ var destPeers = new Array();
+ var srcStreams = new Array();
+ var localStream = null;
+ var index = 0;
+
+ // ---- recording ---
+ var recorder =  null;
+ var blobUrl = null;
+ var chunks = [];
+ var playbackVideo =  document.getElementById('playback_video');
+ var anchor = document.getElementById('downloadlink');
+
+ function startRecording(i) {
+  console.log('startRecord:i=' + i);
+  var stream = srcStreams[i];
+  if (! stream) {
+   console.warn("no stream");
+   return;
+  }
+  if (recorder) {
+   console.warn("recorder already exist");
+   return;
+  }
+
+  recorder = new MediaRecorder(stream);
+  //NOP recorder.audioBitsPerSecond = 32*1024;
+  //NOP recorder.videoBitsPerSecond = 256*1024;
+  chunks = [];
+  recorder.ondataavailable = function(evt) {
+   console.log("data available: evt.data.type=" + evt.data.type + " size=" + evt.data.size);
+   chunks.push(evt.data);
+  };
+
+  recorder.onstop = function(evt) {
+   console.log('recorder.onstop() evt:', evt);
+  };
+
+  recorder.start(1000); // OK
+  // NG: recorder.start(5000);
+  // NG: recorder.start();
+  console.log("start recording");
+ }
+
+ function stopRecording() {
+  if (recorder) {
+   recorder.stop();
+   console.log("stop recording. playback");
+   recorder = null;
+   playRecorded();
+  }
+ }
+
+ function playRecorded() {
+  if (! blobUrl) {
+   window.URL.revokeObjectURL(blobUrl);
+   blobUrl = null;
+  }
+
+  var videoBlob = new Blob(chunks, { type: "video/webm" });
+  blobUrl = window.URL.createObjectURL(videoBlob);
+  anchor.download = 'recorded.webm';
+  anchor.href = blobUrl;
+
+  if (blobUrl) {
+   playbackVideo.src = blobUrl;
+   playbackVideo.onended = function() {
+    playbackVideo.pause();
+    playbackVideo.src = "";
+   };
+
+   playbackVideo.play();
+  }
+ }
+
+
+ function addPeer() {
+  var pc_config = {"iceServers":[]};
+  var srcPeer = new RTCPeerConnection(pc_config);
+  var destPeer = new RTCPeerConnection(pc_config);
+  var srcStream = srcStreams[index];
+  console.log('addPeer index=' + index + ', srcStream:', srcStream); // Bandwidth で絞った転送先を録画しても、サイズは小さくならない
+  connectPeer(srcPeer, destPeer, srcStream);
+ }
+
+ var audioBW = 32; //8; //32; // kbps
+ var videoBW = 256; //64; //256; // kbps
+
+ function connectPeer(srcPeer, destPeer, srcStream) {
+  srcPeers.push(srcPeer);
+  destPeers.push(destPeer);
+
+  srcPeer.onicecandidate = function (evt) {
+   if (evt.candidate) {
+    //console.log(evt.candidate);
+    ////destPeer.addIceCandidate(evt.candidate);
+   }
+   else {
+    console.log('empty candidate event on srcPeer');
+    destPeer.setRemoteDescription(srcPeer.localDescription,
+     function() {
+      destPeer.createAnswer(
+       function(answer) {
+        console.log('-- answer created --');
+        console.log(answer);
+
+        var sdp = setBandwidth(answer.sdp, audioBW, videoBW);
+        answer.sdp = sdp;
+        console.log('LIMIT Bandwidth----');
+        //
+        // Answer側だけ制限すれば、送信(Offer)も制限される
+        //
+        // 多段リレーする際は、最初だけ制限して後を制限しないと、後続はMaxになってしまう
+        //
+
+        destPeer.setLocalDescription(answer,
+         function() {
+         },
+         function(err) {
+          console.error('set local answer err:', err);
+         }
+        );
+       },
+       function (err) { console.error('createAnswer err:', err); },
+       {}
+      );
+     },
+     function(err) {
+      console.error('set remote offer err:', err);
+     }
+    );
+   }
+  };
+
+  destPeer.onicecandidate = function (evt) {
+   if (evt.candidate) {
+    //console.log(evt.candidate);
+    ////srcPeer.addIceCandidate(evt.candidate);
+   }
+   else {
+    console.log('empty candidate event on destPeer');
+    srcPeer.setRemoteDescription(destPeer.localDescription,
+     function() {
+     },
+     function(err) {
+      console.error('set remote answer err:', err);
+     }
+    );
+   }
+  };
+
+  destPeer.addEventListener("addstream", onRemoteStreamAdded, false);
+  destPeer.addEventListener("removestream", onRemoteStreamRemoved, false)
+
+  function onRemoteStreamAdded(event) {
+   console.log("Added remote stream");
+   addRemoteVideo(event.stream);
+   srcStreams.push(event.stream);
+   index++;
+  }
+
+  function onRemoteStreamRemoved(event) {
+   console.log("Remove remote stream");
+  }
+
+  function addRemoteVideo(stream) {
+   logStream('add remoteStream', stream);
+   var newVideo = document.createElement('video');
+   newVideo.style.width = '320px';
+   newVideo.style.height = '240px';
+   newVideo.style.border = '1px solid';
+   newVideo.controls = "1";
+   newVideo.volume = 0;
+   newVideo.src = window.URL.createObjectURL(stream);
+   newVideo.play();
+   videoContainer.appendChild(newVideo);
+  }
+
+  srcPeer.addStream(srcStream);
+  excahgeSDP(srcPeer, destPeer);
+ }
+
+ function excahgeSDP(peer1, peer2) {
+  peer1.createOffer(
+   function(offer) {
+    console.log('-- offer created --');
+    console.log(offer);
+    var sdp = setBandwidth(offer.sdp, audioBW, videoBW);
+    offer.sdp = sdp;
+    peer1.setLocalDescription(offer,
+     function() {
+     },
+     function(err) {
+      console.error('set local offer err:', err);
+     }
+    );
+   },
+   function (err) { console.error('createOffer err:', err); },
+   {}
+  );
+ }
+
+ function logStream(msg, stream) {
+  console.log(msg + ': id=' + stream.id);
+  var videoTracks = stream.getVideoTracks();
+  if (videoTracks) {
+   console.log('videoTracks.length=' + videoTracks.length);
+   for (var i = 0; i < videoTracks.length; i++) {
+    var track = videoTracks[i];
+    console.log(' track.id=' + track.id);
+   }
+  }
+  
+  var audioTracks = stream.getAudioTracks();
+  if (audioTracks) {
+   console.log('audioTracks.length=' + audioTracks.length);
+   for (var i = 0; i < audioTracks.length; i++) {
+    var track = audioTracks[i];
+    console.log(' track.id=' + track.id);
+   }
+  }
+ }
+
+ // kbps
+ function setBandwidth(sdp, audioBandwidth, videoBandwidth) {
+    sdp = sdp.replace(/a=mid:audio\r\n/g, 'a=mid:audio\r\nb=AS:' + audioBandwidth + '\r\n');
+    sdp = sdp.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + videoBandwidth + '\r\n');
+    return sdp;
+ }
+
+ // Request the usermedia
+ function startVideo() {
+  navigator.getUserMedia({video: true, audio: true}, showMedia, errCallback);
+ }
+ 
+ function showMedia(stream) {
+  localStream  = stream;
+  localVideo.src = window.URL.createObjectURL(stream);
+  localVideo.volume = 0;
+  localVideo.play();
+  srcStreams.push(localStream);
+ }
+
+ var errCallback = function(e) {
+  console.log('media error', e);
+ };
+ 
+ function stopVideo() {
+  if (localStream) {
+   localVideo.pause();
+   localVideo.src = "";
+
+   //localStream.stop();
+   stopStream(localStream);
+   localStream = null;
+  }
+ }
+
+ function stopStream(stream) {
+  if (!stream) {
+   console.warn('NO stream');
+   return;
+  }
+    
+  var tracks = stream.getTracks();
+  if (! tracks) {
+   console.warn('NO tracks');
+   return;
+  }
+
+  for (index in tracks) {
+   tracks[index].stop();
+  } 
+ }  
+
+ 
+</script>
+</html>
