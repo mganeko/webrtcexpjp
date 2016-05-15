@@ -142,7 +142,10 @@
       console.log("Failed to create peerConnection, exception: " + e.message);
     }
 
-    // send any ice candidates to the other peer
+    peer.onnegotiationneeded = function(evt) {
+      console.log('onnegotiationneeded() evt:', evt);
+    };
+
     peer.onicecandidate = function (evt) {
       if (evt.candidate) {
         console.log(evt.candidate);
@@ -151,70 +154,28 @@
         sendSDPText(peer.localDescription.sdp);
       }
     };
-
-    peer.oniceconnectionstatechange = function() {
-      console.log('ice connection status=' + peer.iceConnectionState + ' gahter=' + peer.iceGatheringState);
-      if ('completed' === peer.iceConnectionState) {
-        console.log("Connection complete");
-      }
-    };
-
-    peer.onicegatheringstatechange = function() {
-      console.log('ice gathering state=' + peer.iceGatheringState);
+    
+    peer.onicecandidateerror = function (evt) {
+      console.error('ICE candidate ERROR:', evt);
     };
 
     peer.onsignalingstatechange = function() {
-      console.log('signaling status=' + peer.signalingState);
+      console.log('== signaling status=' + peer.signalingState);
     };
 
-    peer.onnegotiationneeded = function(evt) {
-      console.log('onnegotiationneeded() evt:', evt);
+    peer.oniceconnectionstatechange = function() {
+      console.log('== ice connection status=' + peer.iceConnectionState + ' gahter=' + peer.iceGatheringState);
     };
 
-    /*
-    if (localStream) {
-      console.log('Adding local stream...');
-      peer.addStream(localStream);
-    }
-    else {
-      console.warn('no local stream, but continue.');
-    }
-    */
-
-    /*
-    peer.addEventListener("addstream", onRemoteStreamAdded, false);
-    peer.addEventListener("removestream", onRemoteStreamRemoved, false)
-
-    // when remote adds a stream, hand it on to the local video element
-    function onRemoteStreamAdded(event) {
-      console.log("Added remote stream");
-      logStream("remoteStream", event.stream);
-      if (event.stream.id === 'default') {
-        console.warn('remotestream.id=default, so skip');
-        return;
-      }
-      remoteVideo.src = window.URL.createObjectURL(event.stream);
-    }
-
-    // when remote removes a stream, remove it from the local video element
-    function onRemoteStreamRemoved(event) {
-      console.log("Remove remote stream");
-      logStream("remoteStream", event.stream);
-      remoteVideo.src = "";
-    }
-    */
+    peer.onicegatheringstatechange = function() {
+      console.log('==***== ice gathering state=' + peer.iceGatheringState);
+    };
     
-    /*
-    peer.onaddstream = function(event) {
-      console.log("Added remote stream");
-      logStream("remoteStream", event.stream);
-      if (event.stream.id === 'default') {
-        console.warn('remotestream.id=default, so skip');
-        return;
-      }
-      remoteVideo.srcObject = event.stream;
+    peer.onconnectionstatechange = function() {
+      console.log('==***== connection state=' + peer.connectionState);
     };
-    */
+
+
 
     peer.onremovestream = function(event) {
       console.log("Remove remote stream");
