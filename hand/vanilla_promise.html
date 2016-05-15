@@ -2,15 +2,18 @@
 <html>
 <head>
  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>Hand signaling with promise (vanilla ICE)</title>
 </head>
 <body>
 <p><input type="checkbox" id="with_audio">with audio</input>&nbsp;<button type="button" onclick="startVideo();">Start video</button> <button type="button" onclick="stopVideo();">Stop video</button> <button type="button" onclick="connect();">Connect</button> <button type="button" onclick="hangUp();">Hang Up</button></p>
-  <div>
-   <video id="local-video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
-   <video id="remote-video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
-  </div>
-<p>SDP to send:<br /> <textarea id="text-for-send-sdp" rows="5" cols="70" readonly="readonly">SDP to send</textarea></p>
-<p>SDP to receive:<br /> <textarea id="text-for-receive-sdp" rows="5" cols="70"></textarea><br /> <button type="button" onclick="onSDPText();">Receive SDP</button></p>
+<div>
+  <video id="local-video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+  <video id="remote-video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+</div>
+<p>SDP to send:<br /><textarea id="text-for-send-sdp" rows="5" cols="60" readonly="readonly">SDP to send</textarea></p>
+<p>SDP to receive:&nbsp; <button type="button" onclick="onSDPText();">Receive SDP</button><br />
+ <textarea id="text-for-receive-sdp" rows="5" cols="60"></textarea>
+</p>
 </body>
 <script type="text/javascript">
   var localVideo = document.getElementById('local-video');
@@ -260,15 +263,13 @@
       type : 'offer',
       sdp : text,
     });
-    peerConnection.setRemoteDescription(offer,
-      function() {
-        console.log('setRemoteDescription(offer) succsess');
-        makeAnswer();
-      },
-      function(err) {
-        console.error('setRemoteDescription(offer) ERROR: ', err);
-      }
-    );
+    peerConnection.setRemoteDescription(offer)
+    .then(function() {
+      console.log('setRemoteDescription(offer) succsess in promise');
+      makeAnswer();
+    }).catch(function(err) {
+      console.error('setRemoteDescription(offer) ERROR: ', err);
+    });
   }
   
   function makeAnswer() {
@@ -277,23 +278,6 @@
       console.error('peerConnection NOT exist!');
       return;
     }
-	
-    /*
-    peerConnection.createAnswer(function (sessionDescription) { // in case of success
-      peerConnection.setLocalDescription(sessionDescription,
-       function() {
-         console.log('setLocalDescription() succsess');
-       },
-       function(err) {
-         console.log('setLocalDescription() ERROR: ', err);
-       }
-      );
-      console.log("-- Create Answer SDP --");
-      console.log(sessionDescription);
-    }, function (err) { // in case of error
-      console.log("Create Answer failed:", err);
-    }, mediaConstraints);
-    */
     
     peerConnection.createAnswer()
     .then(function (sessionDescription) {
@@ -315,14 +299,12 @@
       type : 'answer',
       sdp : text,
     });
-    peerConnection.setRemoteDescription(answer,
-      function() {
-        console.log('setRemoteDescription(answer) succsess');
-      },
-      function(err) {
-        console.error('setRemoteDescription(answer) ERROR: ', err);
-      }
-    );
+    peerConnection.setRemoteDescription(answer)
+    .then(function() {
+      console.log('setRemoteDescription(answer) succsess in promise');
+    }).catch(function(err) {
+      console.error('setRemoteDescription(answer) ERROR: ', err);
+    });
   }
   
   // -------- handling user UI event -----
