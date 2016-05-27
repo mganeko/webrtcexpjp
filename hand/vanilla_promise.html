@@ -5,7 +5,7 @@
  <title>Hand signaling with promise (vanilla ICE)</title>
 </head>
 <body>
-WebRTC hand signaling with promise for Firefox 46
+WebRTC hand signaling with promise for Firefox 46 and Chrome 51
 <p><input type="checkbox" id="with_audio">with audio</input>&nbsp;<button type="button" onclick="startVideo();">Start video</button> <button type="button" onclick="stopVideo();">Stop video</button> <button type="button" onclick="connect();">Connect</button> <button type="button" onclick="hangUp();">Hang Up</button></p>
 <div>
   <video id="local-video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
@@ -22,7 +22,7 @@ WebRTC hand signaling with promise for Firefox 46
   var localStream = null;
   var peerConnection = null;
   var peerStarted = false;
-  var mediaConstraints = {'mandatory': {'OfferToReceiveAudio':true, 'OfferToReceiveVideo':true }}; // old : Upper case
+  //var mediaConstraints = {'mandatory': {'OfferToReceiveAudio':true, 'OfferToReceiveVideo':true }}; // old : Upper case
   
 
   // --- prefix -----
@@ -31,10 +31,10 @@ WebRTC hand signaling with promise for Firefox 46
   RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
   RTCSessionDescription = window.RTCSessionDescription || window.webkitRTCSessionDescription || window.mozRTCSessionDescription;
 
-  // for firefox
-  if (window.mozRTCPeerConnection) {
-    mediaConstraints = {'mandatory': {'offerToReceiveAudio':true, 'offerToReceiveVideo':true }}; // new: lower case, for firefox
-  }
+  //// for firefox
+  //if (window.mozRTCPeerConnection) {
+  //  mediaConstraints = {'mandatory': {'offerToReceiveAudio':true, 'offerToReceiveVideo':true }}; // new: lower case, for firefox
+  //}
 
   // ----------------- handshake --------------
   var textForSendSDP = document.getElementById('text-for-send-sdp');
@@ -104,9 +104,7 @@ WebRTC hand signaling with promise for Firefox 46
     .then(function (stream) { // success
       logStream('localStream', stream);
       localStream = stream;
-      localVideo.srcObject = stream;
-      localVideo.play();
-      localVideo.volume = 0;
+      playVideo(localVideo, stream);
     }).catch(function (error) { // error
       console.error('getUserMedia error:', error);
       return;
@@ -115,8 +113,7 @@ WebRTC hand signaling with promise for Firefox 46
 
   // stop local video
   function stopVideo() {
-    localVideo.pause();
-    localVideo.srcObject = null;
+    pauseVideo(localVideo);
     stopLocalStream(localStream);
   }
 
@@ -132,6 +129,29 @@ WebRTC hand signaling with promise for Firefox 46
     }
   }
 
+  function playVideo(element, stream) {
+    if ('srcObject' in element) {
+      element.srcObject = stream;
+    }
+    else {
+      element.src = window.URL.createObjectURL(stream);
+    }
+    element.play();
+    element.volume = 0;
+  }
+
+  function pauseVideo(element) {
+    element.pause();
+    if ('srcObject' in element) {
+      element.srcObject = null;
+    }
+    else {
+      if (element.src && (element.src !== '') ) {
+        window.URL.revokeObjectURL(element.src);
+      }
+      element.src = '';
+    }
+  }
 
   // ---------------------- connection handling -----------------------
   function prepareNewConnection() {
@@ -181,17 +201,24 @@ WebRTC hand signaling with promise for Firefox 46
     peer.onremovestream = function(event) {
       console.log("Remove remote stream");
       logStream("remoteStream", event.stream);
-      remoteVideo.pause();
-      remoteVideo.srcObject = null;
+      pauseVideo(remoteVideo);
     };
     
-    peer.ontrack = function(event) {
-      console.log('=== peer.ontrack() event:', event);
-      let stream = event.streams[0];
-      logStream("remoteStream", stream);
-      remoteVideo.srcObject = stream;
+    if ('ontrack' in peer) {
+      peer.ontrack = function(event) {
+        console.log('=== peer.ontrack() event:', event);
+        let stream = event.streams[0];
+        logStream("remoteStream", stream);
+        playVideo(remoteVideo, stream);
+      };
     }
-
+    else {
+      peer.onaddstream = function(event) {
+        var stream = event.stream;
+        playVideo(remoteVideo, stream);
+      };
+    }
+    
     if (localStream) {
       console.log('Adding local stream...');
       peer.addStream(localStream);
