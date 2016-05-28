@@ -5,7 +5,7 @@
  <title>Hand signaling with promise (vanilla ICE)</title>
 </head>
 <body>
-WebRTC hand signaling with promise for Firefox 46 and Chrome 51(enable-experimental-web-platform-features ON)
+WebRTC hand signaling with promise for Firefox 46 and Chrome 51
 <p><input type="checkbox" id="with_audio">with audio</input>&nbsp;<button type="button" onclick="startVideo();">Start video</button> <button type="button" onclick="stopVideo();">Stop video</button> <button type="button" onclick="connect();">Connect</button> <button type="button" onclick="hangUp();">Hang Up</button></p>
 <div>
   <video id="local-video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
@@ -100,7 +100,7 @@ WebRTC hand signaling with promise for Firefox 46 and Chrome 51(enable-experimen
   // start local video
   function startVideo() {
     let withAudio = withAudioChecked();
-    navigator.mediaDevices.getUserMedia({video: true, audio: withAudio})
+    getDeviceStream({video: true, audio: withAudio})
     .then(function (stream) { // success
       logStream('localStream', stream);
       localStream = stream;
@@ -126,6 +126,22 @@ WebRTC hand signaling with promise for Firefox 46 and Chrome 51(enable-experimen
     
     for (let track of tracks) {
       track.stop();
+    }
+  }
+  
+  function getDeviceStream(option) {
+    if ('getUserMedia' in navigator.mediaDevices) {
+      console.log('navigator.mediaDevices.getUserMadia');
+      return navigator.mediaDevices.getUserMedia(option);
+    }
+    else {
+      console.log('wrap navigator.getUserMadia with Promise');
+      return new Promise(function(resolve, reject){    
+        navigator.getUserMedia(option,
+          resolve,
+          reject
+        );
+      });      
     }
   }
 

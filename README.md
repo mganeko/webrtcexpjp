@@ -13,7 +13,7 @@ Chrome 50 で動作確認
 * オプション指定でのMediaRecordeのVP9録画サンプル [self/record_vp9.html](/self/record_vp9.html)
 
 ##  Promise版 手動シグナリング</h3>
-Firefox 46 で確認
+Firefox 46, Chrome 51 で確認
 * Promiseを使った、Vanilla ICEの手動シグナリング [hand/vanilla_promise.html](hand/vanilla_promise.html)
 
 
