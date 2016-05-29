@@ -5,13 +5,16 @@
  <title>Canvas pseudo simulcast</title>
 </head>
 <body>
- WebRTC Canvas pseudo simulcast sender, with hand signaling for Firefox-Firefox(49) or Chrome-Chrome(51)
+ WebRTC Canvas pseudo simulcast switcher, with hand signaling for Firefox-Firefox(49)
  <br />
  <button id="start_button" onclick="startVideo()">StartVideo</button>
  <button id="stop_button" onclick="stopVideo()">StopVideo</button>
  <button type="button" onclick="connect();">Connect</button>
  <button type="button" onclick="hangUp();">Hang Up</button>
  <br />
+ <button id="switchto_camera" onclick="swithToCamera()">SwitchTo Camera</button>
+ <button id="switchto_middle" onclick="swithToMiddle()">SwitchTo Middle</button>
+ <button id="switchto_low" onclick="swithToLow()">SwitchTo Low</button>
  <video id="local_video" width="642px" height="482px" style="border: solid 1px black;"></video>
  <canvas id="canvas_middle" width="320px" height="240px" style="border: none;"></canvas>
  <canvas id="canvas_low" width="240px" height="180px" style="border: none;"></canvas>
@@ -48,6 +51,7 @@
   let canvasLowStream = null;
   let videoMiddle = document.getElementById('video_middle');
   let videoLow = document.getElementById('video_low');
+  let videoSender = null;
 
   var peerConnection = null;
   var peerStarted = false;
@@ -97,7 +101,7 @@
     );
   }
 
-  //let highRezo = { width: 1280, height: 720 };
+  let highRezo = { width: 1280, height: 720 };
   function startVideo() {
     getDeviceStream({video: true, audio: false})
     //navigator.mediaDevices.getUserMedia({video: true, audio: true}) // separate audio
@@ -169,6 +173,39 @@
 
     // animation frame will be drop down, when window is hidden.
     animationId = window.requestAnimationFrame(drawCanvas);
+  }
+
+  function swithToCamera() {
+    console.log('replace video track to camera');
+    var videoTrack = localStream.getVideoTracks()[0];
+    videoSender.replaceTrack(videoTrack)
+    .then(function() {
+      console.log('success replace to camera');
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+  
+  function swithToMiddle() {
+    console.log('replace video track to middle');
+    var videoTrack = canvasMiddleStream.getVideoTracks()[0];
+    videoSender.replaceTrack(videoTrack)
+    .then(function() {
+      console.log('success replace to middle');
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+
+  function swithToLow() {
+    console.log('replace video track to low');
+    var videoTrack = canvasLowStream.getVideoTracks()[0];
+    videoSender.replaceTrack(videoTrack)
+    .then(function() {
+      console.log('success replace to low');
+    }).catch(function(err) {
+      console.error(err);
+    });
   }
 
   // ---- utility ----
@@ -310,7 +347,7 @@
     if (localStream) {
       console.log('Adding localStream stream...');
       if ('addTrack' in peer) {
-        var sender = peer.addTrack(localStream.getVideoTracks()[0], localStream);
+        videoSender = peer.addTrack(localStream.getVideoTracks()[0], localStream);
       }
       else {
         peer.addStream(localStream);
@@ -325,6 +362,7 @@
     }
     */
 
+    /*------ do not add for switch ----
     if (canvasMiddleStream) {
       console.log('Adding canvasMiddle stream...');
       if ('addTrack' in peer) {
@@ -363,6 +401,7 @@
         peer.addStream(canvasLowStream);
       }
     }
+    ------ do not add for switch ----*/
 
     return peer;
   }

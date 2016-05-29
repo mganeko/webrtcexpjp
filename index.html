@@ -25,8 +25,14 @@
   Firefox Nightly 49同士, Chrome 51同士で確認 (Firefox - Chrome間では動作しない）
   <ul>
     <li>Canvas.captureStream()の擬似Simulcast 送信側 <a target="_blank" href="hand/canvas_pseudo_simulcast.html">WebRTC Canvas pseudo simulcast sender</a></li>
+    <ul>
+      <li>audio x 1, video x 3 (camera x 1, canvas x 2) を最初からマルチストリーム通信</li>
+    </ul>
     <li>擬似Simulcast 受信側 <a target="_blank" href="hand/receive_pseudo_simulcast.html">WebRTC pseudo simulcast receiver</a></li>
+    <li>videoTrackを切り替えるデモ(送信側) <a target="_blank" href="hand/switch_pseudo_simulcast.html">Webrtc psesudo simulcast switcher</a> (Firefox 49)</li>
+    <ul>
+      <li>受信は擬似Simulcast 受信側 <a target="_blank" href="hand/receive_pseudo_simulcast.html">WebRTC pseudo simulcast receiver</a>を流用</li>
+    </ul>
   </ul> 
-  audio x 1, video x 3 (camera x 1, canvas x 2) を最初からマルチストリーム通信
   <br />
 </html>
