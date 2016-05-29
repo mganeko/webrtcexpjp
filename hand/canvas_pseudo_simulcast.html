@@ -328,14 +328,16 @@
       console.log('Adding canvasMiddle stream...');
       if ('addTrack' in peer) {
         var sender = peer.addTrack(canvasMiddleStream.getVideoTracks()[0], canvasMiddleStream);
-        var params = sender.getParameters();
-        console.log(params);
-        //params.encodings[0].maxBitrate = 256000; 
-        params = { encodings: [{maxBitrate : 256000}]};
-        sender.setParameters(params)
-        .then(function() {
-          console.log('MiddleStream setParam promise --> getParameter()', sender.getParameters());
-        });
+        if ('setParameters' in sender) {
+          var params = sender.getParameters();
+          console.log(params);
+          //params.encodings[0].maxBitrate = 256000; 
+          params = { encodings: [{maxBitrate : 256000}]};
+          sender.setParameters(params)
+          //.then(function() {
+          //  console.log('MiddleStream setParam promise --> setParameter()', sender.getParameters());
+          //});
+        }
       }
       else {
         peer.addStream(canvasMiddleStream);
@@ -346,13 +348,15 @@
       console.log('Adding canvasLow stream...');
         if ('addTrack' in peer) {
         var sender = peer.addTrack(canvasLowStream.getVideoTracks()[0], canvasLowStream);
-        var params = sender.getParameters();
-        console.log(params);
-        params = { encodings: [{maxBitrate : 128000}]};
-        sender.setParameters(params)
-        .then(function() {
-          console.log('LowStream setParam promise --> getParameter()', sender.getParameters());
-        });
+          if ('setParameters' in sender) {
+          var params = sender.getParameters();
+          console.log(params);
+          params = { encodings: [{maxBitrate : 128000}]};
+          sender.setParameters(params)
+          //.then(function() {
+          //  console.log('LowStream setParam promise --> setParameter()', sender.getParameters());
+          //});
+        }
       }
       else {
         peer.addStream(canvasLowStream);
