@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+ <title>Canvas pseudo simulcast switcher</title>
+</head>
+<body>
+ WebRTC Canvas pseudo simulcast switcher, with hand signaling for Firefox-Firefox(49)
+ <br />
+ <button id="start_button" onclick="startVideo()">StartVideo</button>
+ <button id="stop_button" onclick="stopVideo()">StopVideo</button>
+ <button type="button" onclick="connect();">Connect</button>
+ <button type="button" onclick="hangUp();">Hang Up</button>
+ <br />
+ <button id="switchto_camera" onclick="swithToCamera()">SwitchTo Camera</button>
+ <button id="switchto_middle" onclick="swithToMiddle()">SwitchTo Middle</button>
+ <button id="switchto_low" onclick="swithToLow()">SwitchTo Low</button>
+ <video id="local_video" width="642px" height="482px" style="border: solid 1px black;"></video>
+ <canvas id="canvas_middle" width="320px" height="240px" style="border: none;"></canvas>
+ <canvas id="canvas_low" width="240px" height="180px" style="border: none;"></canvas>
+ <br />
+<p>SDP to send:<br /><textarea id="text-for-send-sdp" rows="5" cols="60" readonly="readonly">SDP to send</textarea></p>
+<p>SDP to receive:  <button type="button" onclick="onSDPText();">Receive SDP</button><br />
+ <textarea id="text-for-receive-sdp" rows="5" cols="60"></textarea>
+</p>
+
+ <video id="video_middle" width="322px" height="242px" style="border: solid 1px black;"></video>
+ <video id="video_low" width="242px" height="182px" style="border: solid 1px black;"></video>
+</body>
+<script>
+  navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
+                           navigator.mozGetUserMedia || navigator.msGetUserMedia;
+  window.RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+  window.RTCIceCandidate = window.RTCIceCandidate || window.mozRTCIceCandidate || window.webkitRTCIceCandidate;
+  window.requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame ||
+                              window.webkitRequestAnimationFrame;
+  window.cancelAnimationFrame = window.cancelAnimationFrame || window.mozCancelAnimationFrame ||
+                              window.webkitCancelAnimationFrame;
+
+  let localVideo = document.getElementById('local_video');
+  let canvasMiddle = document.getElementById('canvas_middle');
+  let canvasLow = document.getElementById('canvas_low');
+  let ctxMiddle = canvasMiddle.getContext('2d');
+  let ctxLow = canvasLow.getContext('2d');
+  let localStream = null;
+  let localAudioStream = null;
+  let animationId = null;
+  let intervalId = null;
+
+  let canvasMiddleStream = null;
+  let canvasLowStream = null;
+  let videoMiddle = document.getElementById('video_middle');
+  let videoLow = document.getElementById('video_low');
+  let videoSender = null;
+
+  var peerConnection = null;
+  var peerStarted = false;
+
+  // ----------------- handshake --------------
+  var textForSendSDP = document.getElementById('text-for-send-sdp');
+  var textToReceiveSDP = document.getElementById('text-for-receive-sdp');
+
+  function onSDPText() {
+    var text = textToReceiveSDP.value;
+    if (peerConnection) {
+      onAnswerText(text);
+    }
+    else {
+      onOfferText(text);
+    }
+    textToReceiveSDP.value ="";
+  }
+  
+  function onOfferText(text) {
+    console.log("Received offer text...")
+    setOfferText(text);
+  }
+  
+  function onAnswerText(text) {
+    console.log("Received answer text...")
+    setAnswerText(text);
+  }
+ 
+  function sendSDPText(text) {
+    console.log("---sending sdp text ---");	
+    textForSendSDP.value = text;
+    textForSendSDP.focus();
+    textForSendSDP.select();
+  }
+
+
+  function startAudio() {
+    getDeviceStream({video: false, audio: true})
+      .then(function (stream) { // success
+        localAudioStream = stream;
+        logStream('localAudioStream', localAudioStream);
+      }).catch(function (error) { // error
+        console.error('getUserMedia error:', error);
+        return;
+      }
+    );
+  }
+
+  let highRezo = { width: 1280, height: 720 };
+  function startVideo() {
+    getDeviceStream({video: true, audio: false})
+    //navigator.mediaDevices.getUserMedia({video: true, audio: true}) // separate audio
+      .then(function (stream) { // success
+        localStream = stream;
+        logStream('localStream', stream);
+        playVideo(localVideo, localStream);
+        
+        canvasMiddleStream = canvasMiddle.captureStream(15);
+        playVideo(videoMiddle, canvasMiddleStream);
+        logStream('canvasMiddleStream', canvasMiddleStream);
+        
+        canvasLowStream = canvasLow.captureStream(5);
+        playVideo(videoLow, canvasLowStream);
+        logStream('canvasLowStream', canvasLowStream);
+        
+        startAudio();
+
+        // animation frame will be drop down, when window is hidden.
+        animationId = window.requestAnimationFrame(drawCanvas);
+
+        // use interval for updating while window is hidden
+        //intervalId = setInterval(drawCanvas, 50);
+      }).catch(function (error) { // error
+        console.error('getUserMedia error:', error);
+        return;
+      }
+    );
+  }
+
+  function stopVideo() {
+    pauseVideo(localVideo);
+    pauseVideo(videoMiddle);
+    pauseVideo(videoLow);
+
+    if (localStream) {
+      stopLocalStream(localStream);
+      localStream = null;
+    }
+    if (canvasMiddleStream) {
+      stopLocalStream(canvasMiddleStream);
+      canvasMiddleStream = null;
+    }
+    if (canvasLowStream) {
+      stopLocalStream(canvasLowStream);
+      canvasLowStream = null;
+    }
+    if (localAudioStream) {
+      stopLocalStream(localAudioStream);
+      localAudioStream = null;
+    }
+
+    if (animationId) {
+      window.cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  }
+
+  function drawCanvas() {
+    ctxMiddle.drawImage(localVideo, 1, 1, 640, 480, 1, 1, 320, 240);
+    ctxMiddle.fillText("320x240 15fps",10,10);
+    ctxLow.drawImage(localVideo, 1, 1, 640, 480, 1, 1, 240, 180);
+    ctxLow.fillText("240x180 5fps",10,10);
+
+    // animation frame will be drop down, when window is hidden.
+    animationId = window.requestAnimationFrame(drawCanvas);
+  }
+
+  function swithToCamera() {
+    console.log('replace video track to camera');
+    var videoTrack = localStream.getVideoTracks()[0];
+    videoSender.replaceTrack(videoTrack)
+    .then(function() {
+      console.log('success replace to camera');
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+  
+  function swithToMiddle() {
+    console.log('replace video track to middle');
+    var videoTrack = canvasMiddleStream.getVideoTracks()[0];
+    videoSender.replaceTrack(videoTrack)
+    .then(function() {
+      console.log('success replace to middle');
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+
+  function swithToLow() {
+    console.log('replace video track to low');
+    var videoTrack = canvasLowStream.getVideoTracks()[0];
+    videoSender.replaceTrack(videoTrack)
+    .then(function() {
+      console.log('success replace to low');
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+
+  // ---- utility ----
+  function logStream(msg, stream) {
+    console.log(msg + ': id=' + stream.id);
+
+    var videoTracks = stream.getVideoTracks();
+    if (videoTracks) {
+      console.log('videoTracks.length=' + videoTracks.length);
+      for (var i = 0; i < videoTracks.length; i++) {
+        var track = videoTracks[i];
+        console.log('track.id=' + track.id);
+      }
+    }
+
+    var audioTracks = stream.getAudioTracks();
+    if (audioTracks) {
+      console.log('audioTracks.length=' + audioTracks.length);
+      for (var i = 0; i < audioTracks.length; i++) {
+        var track = audioTracks[i];
+        console.log('track.id=' + track.id);
+      }
+    }
+  }
+
+  function stopLocalStream(stream) {
+    let tracks = stream.getTracks();
+    if (! tracks) {
+      console.warn('NO tracks');
+      return;
+    }
+    
+    for (let track of tracks) {
+      track.stop();
+    }
+  }
+
+  function getDeviceStream(option) {
+    if ('getUserMedia' in navigator.mediaDevices) {
+      console.log('navigator.mediaDevices.getUserMadia');
+      return navigator.mediaDevices.getUserMedia(option);
+    }
+    else {
+      console.log('wrap navigator.getUserMadia with Promise');
+      return new Promise(function(resolve, reject){    
+        navigator.getUserMedia(option,
+          resolve,
+          reject
+        );
+      });      
+    }
+  }
+
+  function playVideo(element, stream) {
+    if ('srcObject' in element) {
+      element.srcObject = stream;
+    }
+    else {
+      element.src = window.URL.createObjectURL(stream);
+    }
+    element.play();
+    element.volume = 0;
+  }
+
+  function pauseVideo(element) {
+    element.pause();
+    if ('srcObject' in element) {
+      element.srcObject = null;
+    }
+    else {
+      if (element.src && (element.src !== '') ) {
+        window.URL.revokeObjectURL(element.src);
+      }
+      element.src = '';
+    }
+  }
+
+  // ---------------------- connection handling -----------------------
+  function prepareNewConnection() {
+    var pc_config = {"iceServers":[]};
+    var peer = null;
+    try {
+      peer = new RTCPeerConnection(pc_config);
+    } catch (e) {
+      console.log("Failed to create peerConnection, exception: " + e.message);
+    }
+
+    peer.onnegotiationneeded = function(evt) {
+      console.log('onnegotiationneeded() evt:', evt);
+    };
+
+    peer.onicecandidate = function (evt) {
+      if (evt.candidate) {
+        console.log(evt.candidate);
+      } else {
+        console.log("empty ice event, send SDP now");
+        sendSDPText(peer.localDescription.sdp);
+      }
+    };
+    
+    peer.onicecandidateerror = function (evt) {
+      console.error('ICE candidate ERROR:', evt);
+    };
+
+    peer.onsignalingstatechange = function() {
+      console.log('== signaling status=' + peer.signalingState);
+    };
+
+    peer.oniceconnectionstatechange = function() {
+      console.log('== ice connection status=' + peer.iceConnectionState + ' gahter=' + peer.iceGatheringState);
+    };
+
+    peer.onicegatheringstatechange = function() {
+      console.log('==***== ice gathering state=' + peer.iceGatheringState);
+    };
+    
+    peer.onconnectionstatechange = function() {
+      console.log('==***== connection state=' + peer.connectionState);
+    };
+
+    peer.onremovestream = function(event) {
+      console.warn('onremovestream() NOT handled');
+    };
+    
+    peer.ontrack = function(event) {
+      console.warn('ontrack() NOT handled');
+    }
+
+    if (localAudioStream) {
+      console.log('Adding localAudio stream...');
+      if ('addTrack' in peer) {
+        var sender = peer.addTrack(localAudioStream.getAudioTracks()[0], localAudioStream);
+      }
+      else {
+        peer.addStream(localAudioStream);
+      }
+    }
+
+    if (localStream) {
+      console.log('Adding localStream stream...');
+      if ('addTrack' in peer) {
+        videoSender = peer.addTrack(localStream.getVideoTracks()[0], localStream);
+      }
+      else {
+        peer.addStream(localStream);
+      }
+    }
+    /* separate audio
+    if (localStream) {
+      console.log('Adding localStream audioTrack...');
+      if (localStream.getAudioTracks().length > 0) {
+        var sender = peer.addTrack(localStream.getAudioTracks()[0], localStream);
+      }
+    }
+    */
+
+    /*------ do not add for switch ----
+    if (canvasMiddleStream) {
+      console.log('Adding canvasMiddle stream...');
+      if ('addTrack' in peer) {
+        var sender = peer.addTrack(canvasMiddleStream.getVideoTracks()[0], canvasMiddleStream);
+        if ('setParameters' in sender) {
+          var params = sender.getParameters();
+          console.log(params);
+          //params.encodings[0].maxBitrate = 256000; 
+          params = { encodings: [{maxBitrate : 256000}]};
+          sender.setParameters(params)
+          //.then(function() {
+          //  console.log('MiddleStream setParam promise --> setParameter()', sender.getParameters());
+          //});
+        }
+      }
+      else {
+        peer.addStream(canvasMiddleStream);
+      }
+    }
+
+    if (canvasLowStream) {
+      console.log('Adding canvasLow stream...');
+        if ('addTrack' in peer) {
+        var sender = peer.addTrack(canvasLowStream.getVideoTracks()[0], canvasLowStream);
+          if ('setParameters' in sender) {
+          var params = sender.getParameters();
+          console.log(params);
+          params = { encodings: [{maxBitrate : 128000}]};
+          sender.setParameters(params)
+          //.then(function() {
+          //  console.log('LowStream setParam promise --> setParameter()', sender.getParameters());
+          //});
+        }
+      }
+      else {
+        peer.addStream(canvasLowStream);
+      }
+    }
+    ------ do not add for switch ----*/
+
+    return peer;
+  }
+
+  function makeOffer() {
+    peerConnection = prepareNewConnection();
+    peerConnection.createOffer()
+    .then(function (sessionDescription) {
+      console.log('createOffer() succsess in promise');
+      var sdp = setupBandwidth(sessionDescription.sdp);
+      sessionDescription.sdp = sdp;
+      return peerConnection.setLocalDescription(sessionDescription);
+    }).then(function() {
+      console.log('setLocalDescription() succsess in promise');
+      if ('getSenders' in peerConnection) {
+        var senders = peerConnection.getSenders();
+　　     for (sender of senders) {
+          var params = sender.getParameters();
+          console.log('---- sender param after setLocalDesc ----');
+          console.log(params);
+        }
+      }
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+
+  function setupBandwidth(sdp) {
+    sdp = sdp.replace(/a=mid:sdparta_2\r\n/g, 'a=mid:sdparta_2\r\nb=AS:' + 256 + '\r\n');
+    sdp = sdp.replace(/a=mid:sdparta_3\r\n/g, 'a=mid:sdparta_3\r\nb=AS:' + 128 + '\r\n');
+    sdp = sdp.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + 512 + '\r\n');
+    return sdp;
+  }
+
+
+  function setOfferText(text) {
+    if (peerConnection) {
+      console.error('peerConnection alreay exist!');
+    }
+    peerConnection = prepareNewConnection();
+    var offer = new RTCSessionDescription({
+      type : 'offer',
+      sdp : text,
+    });
+    peerConnection.setRemoteDescription(offer)
+    .then(function() {
+      console.log('setRemoteDescription(offer) succsess in promise');
+      if ('getReceivers' in peerConnection) {
+        var receivers = peerConnection.getReceivers();
+        console.log('setRemoteDescription receivers:', receivers);
+        var receiver = receivers[0];
+        console.log('setRemoteDescription receiver:', receiver);
+        // not YET  var params = receiver.getParameters();
+        //console.log('reveiver params:', params);
+      }
+      makeAnswer();
+    }).catch(function(err) {
+      console.error('setRemoteDescription(offer) ERROR: ', err);
+    });
+  }
+  
+  function makeAnswer() {
+    console.log('sending Answer. Creating remote session description...' );
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+    
+    peerConnection.createAnswer()
+    .then(function (sessionDescription) {
+      console.log('createAnswer() succsess in promise');
+      return peerConnection.setLocalDescription(sessionDescription);
+    }).then(function() {
+      console.log('setLocalDescription() succsess in promise');
+      if ('getReceivers' in peerConnection) {
+        var receivers = peerConnection.getReceivers();
+        console.log('setLocalDescription receivers:', receivers);
+      }
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+
+  function setAnswerText(text) {
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+    var answer = new RTCSessionDescription({
+      type : 'answer',
+      sdp : text,
+    });
+    peerConnection.setRemoteDescription(answer)
+    .then(function() {
+      console.log('setRemoteDescription(answer) succsess in promise');
+      if ('getSenders' in peerConnection) {
+        var senders = peerConnection.getSenders();
+  　　   for (sender of senders) {
+          var params = sender.getParameters();
+          console.log('---- sender param after setRemoteDesc ----');
+          console.log(params);
+        }
+      }
+    }).catch(function(err) {
+      console.error('setRemoteDescription(answer) ERROR: ', err);
+    });
+  }
+
+  function connect() {
+    if (!peerStarted) {
+      makeOffer();
+      peerStarted = true;
+    } else {
+      //alert("peer already started.");
+      console.warn('--force re create offer--');
+      makeOffer();
+    }
+  }
+
+  function hangUp() {
+    console.log("Hang up.");
+    if (peerConnection) {
+      peerConnection.close();
+      peerConnection = null;
+      peerStarted = false;
+    }
+  }
+  
+</script>
+</html>
