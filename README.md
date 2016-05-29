@@ -20,5 +20,6 @@ Firefox 46, Chrome 51 で確認
 Firefox Nightly 49同士, Chrome 51同士で確認 (Firefox - Chrome間では動作しない）
 * Canvas.captureStream()の擬似Simulcast 送信側 [hand/canvas_pseudo_simulcast.html](hand/canvas_pseudo_simulcast.html)
 * 擬似Simulcast 受信側 [hand/receive_pseudo_simulcast.html](hand/receive_pseudo_simulcast.html)
+
 audio x 1, video x 3 (camera x 1, canvas x 2) を最初からマルチストリーム通信
 
