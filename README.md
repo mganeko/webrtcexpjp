@@ -12,11 +12,13 @@ Chrome 50 で動作確認
 * SDPのコーデック指定を用いて、MediaRecorderのVP9録画実験 [self/record_relay_vp9](/self/record_relay_vp9.html)
 * オプション指定でのMediaRecordeのVP9録画サンプル [self/record_vp9.html](/self/record_vp9.html)
 
-##  Promise版 手動シグナリング</h3>
+##  Promise版 手動シグナリング
 Firefox 46, Chrome 51 で確認
 * Promiseを使った、Vanilla ICEの手動シグナリング [hand/vanilla_promise.html](hand/vanilla_promise.html)
 
-
-  
-
+## Canvas.captureStream() を使った擬似Simulcast(手動シグナリング)
+Firefox Nightly 49同士, Chrome 51同士で確認 (Firefox - Chrome間では動作しない）
+* Canvas.captureStream()の擬似Simulcast 送信側 [hand/canvas_pseudo_simulcast.html](hand/canvas_pseudo_simulcast.html)
+* 擬似Simulcast 受信側 [hand/receive_pseudo_simulcast.html](hand/receive_pseudo_simulcast.html)
+audio x 1, video x 3 (camera x 1, canvas x 2) を最初からマルチストリーム通信
 

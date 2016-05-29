@@ -20,4 +20,13 @@
   <ul>
     <li>Promiseを使った、Vanilla ICEの手動シグナリング <a target="_blank" href="hand/vanilla_promise.html">Firefox hand signaling with promise</a></li>
   </ul>
+  
+  <h3>Canvas.captureStream() を使った擬似Simulcast(手動シグナリング)</h3>
+  Firefox Nightly 49同士, Chrome 51同士で確認 (Firefox - Chrome間では動作しない）
+  <ul>
+    <li>Canvas.captureStream()の擬似Simulcast 送信側 <a target="_blank" href="hand/canvas_pseudo_simulcast.html">WebRTC Canvas pseudo simulcast sender</a></li>
+    <li>擬似Simulcast 受信側 <a target="_blank" href="hand/receive_pseudo_simulcast.html">WebRTC pseudo simulcast receiver</a></li>
+  </ul> 
+  audio x 1, video x 3 (camera x 1, canvas x 2) を最初からマルチストリーム通信
+  <br />
 </html>
