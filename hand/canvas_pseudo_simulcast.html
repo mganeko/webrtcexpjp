@@ -162,9 +162,9 @@
   }
 
   function drawCanvas() {
-    ctxMiddle.drawImage(localVideo, 1, 1, 640, 480, 1, 1, 320, 240);
+    ctxMiddle.drawImage(localVideo, 1, 1, 640, 480, 0, 0, 320, 240);
     ctxMiddle.fillText("320x240 15fps",10,10);
-    ctxLow.drawImage(localVideo, 1, 1, 640, 480, 1, 1, 240, 180);
+    ctxLow.drawImage(localVideo, 1, 1, 640, 480, 0, 0, 240, 180);
     ctxLow.fillText("240x180 5fps",10,10);
 
     // animation frame will be drop down, when window is hidden.
