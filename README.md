@@ -4,6 +4,9 @@ WebRTC 関連の実験(HTML, JavaScript)を公開します。
 
 GitHub pages はこちら https://mganeko.github.io/webrtcexpjp/
 
+## HTML5Experts.jp のサンプル
+* カメラを使ってみよう
+
 ## WebRTC Meetup 10 のサンプル
 Chrome 50 で動作確認
 * 音声も含んだ多段中継の実験 [self/relay.html](/self/relay.html)
