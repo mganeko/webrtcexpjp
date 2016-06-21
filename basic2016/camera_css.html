@@ -9,13 +9,28 @@
     animation-duration:4s;
     animation-iteration-count:infinite;
     animation-timing-function:linear;
-    animation-name:rectRotate;     
+    animation-name:rotate360;     
    }
- 
-   @keyframes rectRotate
+
+   #shake_video
+   {
+    animation-duration:0.5s;
+    animation-iteration-count:infinite;
+    animation-timing-function:ease-in-out;
+    animation-name:shake;     
+   }
+   
+   @keyframes rotate360
    {
     0%{transform:rotate(0deg);}
-    99%,100%{transform:rotate(360deg);}
+    100%{transform:rotate(360deg);}
+   }
+
+   @keyframes shake
+   {
+    0%{transform:rotate(-20deg);}
+    50%{transform:rotate(20deg);}
+    100%{transform:rotate(-20deg);}
    }
   </style> 
 </head>
@@ -25,18 +40,22 @@
   <button onclick="stopVideo()">Stop</button>
   <br />
   <video id="local_video" autoplay style="width: 320px; height: 240px; border: 1px solid black;"></video>
-  <!--
-  <video id="flip_video" autoplay style="-webkit-transform: scaleX(-1); -moz-transform: scaleX(-1); width: 320px; height: 240px; border: 1px solid black;"></video>
-  -->
+
+  <!-- 左右反転 -->
   <video id="flip_video" autoplay style="transform: scaleX(-1); width: 320px; height: 240px; border: 1px solid black;"></video>
-  <!-- video id="3d_video" autoplay style="transform: matrix3d(0.866033958, -0.499985183, 0, 0, 0.499985183, 0.866033958, 0, 0,  0,0,1,0,  0,0,0,1); width: 320px; height: 240px; border: 1px solid black;"></video> -->
-  <!--
-  <video id="3d_video" autoplay style="transform: matrix3d(1,0,0,0,  0, 0.866033958, -0.499985183, 0,  0, 0.499985183, 0.866033958, 0,  0,0,0,1); width: 320px; height: 240px; border: 1px solid black;"></video>
-  -->
+
+  <!-- 角丸 -->
   <video id="round_video" autoplay style="border-radius: 80px 80px 80px 80px; width: 320px; height: 240px; border: 1px solid black;"></video>
+
+  <!-- セピア -->
   <video id="filter_video" autoplay style="filter: sepia(100%); -webkit-filter: sepia(100%); width: 320px; height: 240px; border: 1px solid black;"></video>
   <br />
+
+  <!-- 回転アニメーション -->
   <video id="rotate_video" autoplay style="width: 320px; height: 240px; border: 1px solid black;"></video>
+
+  <!-- 振動アニメーション -->
+  <video id="shake_video" autoplay style="width: 320px; height: 240px; border: 1px solid black;"></video>
   
 </body>
 <script type="text/javascript">
@@ -50,10 +69,11 @@
       localStream = stream;
       localVideo.src = window.URL.createObjectURL(localStream);
 	  
-	  document.getElementById('flip_video').src = localVideo.src;
-	  document.getElementById('round_video').src = localVideo.src;
-	  document.getElementById('filter_video').src = localVideo.src;
-	  document.getElementById('rotate_video').src = localVideo.src;
+      document.getElementById('flip_video').src = localVideo.src;
+      document.getElementById('round_video').src = localVideo.src;
+      document.getElementById('filter_video').src = localVideo.src;
+      document.getElementById('rotate_video').src = localVideo.src;
+      document.getElementById('shake_video').src = localVideo.src;
     }).catch(function (error) { // error
       console.error('mediaDevice.getUserMedia() error:', error);
       return;
@@ -70,6 +90,12 @@
     localVideo.pause();
     window.URL.revokeObjectURL(localVideo.src);
     localVideo.src = '';
+
+    document.getElementById('flip_video').src = '';
+    document.getElementById('round_video').src = '';
+    document.getElementById('filter_video').src = '';
+    document.getElementById('rotate_video').src = '';
+    document.getElementById('shake_video').src = '';
   }
 </script>
 </html>
