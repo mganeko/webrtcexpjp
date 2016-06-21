@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>Camera with mediaDevice</title>
+ <style type="text/css">
+   #rotate_video
+   {
+    animation-duration:4s;
+    animation-iteration-count:infinite;
+    animation-timing-function:linear;
+    animation-name:rectRotate;     
+   }
+ 
+   @keyframes rectRotate
+   {
+    0%{transform:rotate(0deg);}
+    99%,100%{transform:rotate(360deg);}
+   }
+  </style> 
+</head>
+<body>
+  Camera with mediaDevice.getUserMedia()<br />
+  <button onclick="startVideo()">Start</button>
+  <button onclick="stopVideo()">Stop</button>
+  <br />
+  <video id="local_video" autoplay style="width: 320px; height: 240px; border: 1px solid black;"></video>
+  <!--
+  <video id="flip_video" autoplay style="-webkit-transform: scaleX(-1); -moz-transform: scaleX(-1); width: 320px; height: 240px; border: 1px solid black;"></video>
+  -->
+  <video id="flip_video" autoplay style="transform: scaleX(-1); width: 320px; height: 240px; border: 1px solid black;"></video>
+  <!-- video id="3d_video" autoplay style="transform: matrix3d(0.866033958, -0.499985183, 0, 0, 0.499985183, 0.866033958, 0, 0,  0,0,1,0,  0,0,0,1); width: 320px; height: 240px; border: 1px solid black;"></video> -->
+  <!--
+  <video id="3d_video" autoplay style="transform: matrix3d(1,0,0,0,  0, 0.866033958, -0.499985183, 0,  0, 0.499985183, 0.866033958, 0,  0,0,0,1); width: 320px; height: 240px; border: 1px solid black;"></video>
+  -->
+  <video id="round_video" autoplay style="border-radius: 80px 80px 80px 80px; width: 320px; height: 240px; border: 1px solid black;"></video>
+  <video id="filter_video" autoplay style="filter: sepia(100%); -webkit-filter: sepia(100%); width: 320px; height: 240px; border: 1px solid black;"></video>
+  <br />
+  <video id="rotate_video" autoplay style="width: 320px; height: 240px; border: 1px solid black;"></video>
+  
+</body>
+<script type="text/javascript">
+  let localVideo = document.getElementById('local_video');
+  let localStream;
+  
+  // start local video
+  function startVideo() {
+    navigator.mediaDevices.getUserMedia({video: true, audio: false})
+    .then(function (stream) { // success
+      localStream = stream;
+      localVideo.src = window.URL.createObjectURL(localStream);
+	  
+	  document.getElementById('flip_video').src = localVideo.src;
+	  document.getElementById('round_video').src = localVideo.src;
+	  document.getElementById('filter_video').src = localVideo.src;
+	  document.getElementById('rotate_video').src = localVideo.src;
+    }).catch(function (error) { // error
+      console.error('mediaDevice.getUserMedia() error:', error);
+      return;
+    });
+  }
+  
+  // stop local video
+  function stopVideo() {
+    for (track of localStream.getTracks()) {
+      track.stop();
+    }
+    localStream = null;
+    
+    localVideo.pause();
+    window.URL.revokeObjectURL(localVideo.src);
+    localVideo.src = '';
+  }
+</script>
+</html>
+
