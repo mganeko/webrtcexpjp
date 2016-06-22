@@ -1,0 +1,127 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>Camera with mediaDevice</title>
+ <style type="text/css">
+   #rotate_video
+   {
+    animation-duration:4s;
+    animation-iteration-count:infinite;
+    animation-timing-function:linear;
+    animation-name:rotate360;     
+   }
+
+   #shake_video
+   {
+    animation-duration:0.5s;
+    animation-iteration-count:infinite;
+    animation-timing-function:ease-in-out;
+    animation-name:shake;     
+   }
+   
+   @keyframes rotate360
+   {
+    0%{transform:rotate(0deg);}
+    100%{transform:rotate(360deg);}
+   }
+
+   @keyframes shake
+   {
+    0%{transform:rotate(-20deg);}
+    50%{transform:rotate(20deg);}
+    100%{transform:rotate(-20deg);}
+   }
+  </style> 
+</head>
+<body>
+  Camera with mediaDevice.getUserMedia()<br />
+  <button onclick="startVideo()">Start</button>
+  <button onclick="stopVideo()">Stop</button>
+  <br />
+  <!-- 通常 -->
+  <video id="local_video" autoplay style="width: 320px; height: 240px; border: 1px solid black;"></video>
+
+  <!-- 左右反転 -->
+  <video id="flip_video" autoplay style="transform: scaleX(-1); width: 320px; height: 240px; border: 1px solid black;"></video>
+
+  <!-- 角丸 -->
+  <video id="round_video" autoplay style="border-radius: 80px 80px 80px 80px; width: 320px; height: 240px; border: 1px solid black;"></video>
+
+  <!-- セピア -->
+  <video id="filter_video" autoplay style="filter: sepia(100%); -webkit-filter: sepia(100%); width: 320px; height: 240px; border: 1px solid black;"></video>
+  <br />
+
+  <!-- 回転アニメーション -->
+  <video id="rotate_video" autoplay style="width: 320px; height: 240px; border: 1px solid black;"></video>
+
+  <!-- 振動アニメーション -->
+  <video id="shake_video" autoplay style="width: 320px; height: 240px; border: 1px solid black;"></video>
+  
+</body>
+<script type="text/javascript">
+  // --- prefix -----
+  navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
+                            navigator.mozGetUserMedia || navigator.msGetUserMedia;
+
+  let localVideo = document.getElementById('local_video');
+  let localStream;
+  
+  // start local video
+  function startVideo() {
+    getDeviceStream({video: true, audio: false})
+    .then(function (stream) { // success
+      localStream = stream;
+      localVideo.src = window.URL.createObjectURL(localStream);
+	  
+      document.getElementById('flip_video').src = localVideo.src;
+      document.getElementById('round_video').src = localVideo.src;
+      document.getElementById('filter_video').src = localVideo.src;
+      document.getElementById('rotate_video').src = localVideo.src;
+      document.getElementById('shake_video').src = localVideo.src;
+    }).catch(function (error) { // error
+      console.error('mediaDevice.getUserMedia() error:', error);
+      return;
+    });
+  }
+  
+  // stop local video
+  function stopVideo() {
+    stopStream(localStream);
+    localStream = null;
+    
+    localVideo.pause();
+    window.URL.revokeObjectURL(localVideo.src);
+    localVideo.src = '';
+
+    document.getElementById('flip_video').src = '';
+    document.getElementById('round_video').src = '';
+    document.getElementById('filter_video').src = '';
+    document.getElementById('rotate_video').src = '';
+    document.getElementById('shake_video').src = '';
+  }
+
+  function getDeviceStream(option) {
+    if ('getUserMedia' in navigator.mediaDevices) {
+      console.log('navigator.mediaDevices.getUserMadia');
+      return navigator.mediaDevices.getUserMedia(option);
+    }
+    else {
+      console.log('wrap navigator.getUserMadia with Promise');
+      return new Promise(function(resolve, reject){    
+        navigator.getUserMedia(option,
+          resolve,
+          reject
+        );
+      });      
+    }
+  }
+  
+  function stopStream(stream) {
+    for (track of stream.getTracks()) {
+      track.stop();
+    }
+  }
+</script>
+</html>
+
