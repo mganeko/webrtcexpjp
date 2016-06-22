@@ -5,10 +5,10 @@ WebRTC 関連の実験(HTML, JavaScript)を公開します。
 GitHub pages はこちら https://mganeko.github.io/webrtcexpjp/
 
 ## HTML5Experts.jp WebRTC再入門2016 のサンプル
-### カメラを使ってみよう 
+### (1)カメラを使ってみよう 
 * 新しいAPIでカメラをつかってみる [basic2016/camera_new.html](/basic2016/camera_new.html)
-* CSS3と組み合わせてみる [basic2016/camera_css.html](/basic2016/camera_css.html)
 * 新旧APIをPromiseでラップしてみる [basic2016/camera_old_new.html](/basic2016/camera_old_new.html)
+* CSS3と組み合わせてみる [basic2016/camera_css_wrap.html](/basic2016/camera_css_wrap.html)
 
 ## WebRTC Meetup 10 のサンプル
 Chrome 50 で動作確認
