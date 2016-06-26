@@ -10,6 +10,12 @@ GitHub pages はこちら https://mganeko.github.io/webrtcexpjp/
 * 新旧APIをPromiseでラップしてみる [basic2016/camera_old_new.html](/basic2016/camera_old_new.html)
 * CSS3と組み合わせてみる [basic2016/camera_css_wrap.html](/basic2016/camera_css_wrap.html)
 
+### (2)手動でシグナリングをやってみよう 
+* 基本の手動シグナリング [basic2016/hand_signaling.html](/basic2016/hand_signaling.html)
+* adapter.jsを使ってEdgeでも動く手動シグナリング [basic2016/hand_signaling_adapter.html](/basic2016/hand_signaling_adapter.html)
+* 手動シグナリングでSDPを変更してみる [basic2016/hand_signaling_modify.html](/basic2016/hand_signaling_modify.html)
+
+
 ## WebRTC Meetup 10 のサンプル
 Chrome 50 で動作確認
 * 音声も含んだ多段中継の実験 [self/relay.html](/self/relay.html)
