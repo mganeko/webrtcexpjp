@@ -19,8 +19,11 @@
   <p>SDP to send:<br />
     <textarea id="text_for_send_sdp" rows="5" cols="60" readonly="readonly">SDP to send</textarea>
   </p>
-  <p>SDP to receive:&nbsp;
-    <button type="button" onclick="onSdpText();">Receive remote SDP</button><br />
+  <p>SDP received:&nbsp;
+    <!--
+    <button type="button" onclick="onSdpText();">Receive remote SDP</button>
+    -->
+    <br />
     <textarea id="text_for_receive_sdp" rows="5" cols="60"></textarea>
   </p>
 </body>
@@ -44,7 +47,7 @@
   // please use node.js app
   //  
   // or you can use chrome app (only work with Chrome)
-  //  https://chrome.google.com/webstore/detail/simple-message-server/bihajhgkmpfnmbmdnobjcdhagncbkmmp/related
+  //  https://chrome.google.com/webstore/detail/simple-message-server/bihajhgkmpfnmbmdnobjcdhagncbkmmp
   //
   let wsUrl = 'ws://localhost:3001/';
   let ws = new WebSocket(wsUrl);
@@ -60,12 +63,14 @@
     if (message.type === 'offer') {
       // -- got offer ---
       console.log('Received offer ...');
+      textToReceiveSdp.value = message.sdp;
       let offer = new RTCSessionDescription(message);
       setOffer(offer);
     }
     else if (message.type === 'answer') {
       // --- got answer ---
       console.log('Received answer ...');
+      textToReceiveSdp.value = message.sdp;
       let answer = new RTCSessionDescription(message);
       setAnswer(answer);
     }
@@ -178,8 +183,8 @@
   function sendSdp(sessionDescription) {
     console.log('---sending sdp ---');
 
-    /*---
     textForSendSdp.value = sessionDescription.sdp;
+    /*---
     textForSendSdp.focus();
     textForSendSdp.select();
     ----*/
