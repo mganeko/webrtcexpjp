@@ -41,13 +41,15 @@
   */
 
   // -------- websocket ----
-  // use chrome app
-  // https://chrome.google.com/webstore/detail/simple-message-server/bihajhgkmpfnmbmdnobjcdhagncbkmmp/related
+  // please use node.js app
+  //  
+  // or you can use chrome app (only work with Chrome)
+  //  https://chrome.google.com/webstore/detail/simple-message-server/bihajhgkmpfnmbmdnobjcdhagncbkmmp/related
   //
   let wsUrl = 'ws://localhost:3001/';
   let ws = new WebSocket(wsUrl);
   ws.onopen = function(evt) {
-    console.log('ws open() evt:', evt);
+    console.log('ws open()');
   };
   ws.onerror = function(err) {
     console.error('ws onerror() ERR:', err);
