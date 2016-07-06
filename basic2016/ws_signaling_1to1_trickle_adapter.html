@@ -3,9 +3,10 @@
 <head>
  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
  <title>WebSocket Signaling 1to1</title>
+ <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
 </head>
 <body>
-  WebSocket Signaling 1to1 (vanilla ICE) with adapter.js<br />
+  WebSocket Signaling 1to1 (trickle ICE) with adapter.js<br />
   <button type="button" onclick="startVideo();">Start Video</button>
   <button type="button" onclick="stopVideo();">Stop Video</button>
   &nbsp;
@@ -34,11 +35,13 @@
   let textForSendSdp = document.getElementById('text_for_send_sdp');
   let textToReceiveSdp = document.getElementById('text_for_receive_sdp');
 
+  /*
   // --- prefix -----
   navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
                             navigator.mozGetUserMedia || navigator.msGetUserMedia;
   RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
   RTCSessionDescription = window.RTCSessionDescription || window.webkitRTCSessionDescription || window.mozRTCSessionDescription;
+  */
 
   // -------- websocket ----
   // please use node.js app
@@ -71,13 +74,21 @@
       let answer = new RTCSessionDescription(message);
       setAnswer(answer);
     }
+    else if (message.type === 'candidate') {
+      // --- got ICE candidate ---
+      console.log('Received ICE candidate ...');
+      let candidate = new RTCIceCandidate(message.ice);
+      console.log(candidate);
+      addIceCandidate(candidate);
+    }
   };
   
 
   // ---------------------- media handling ----------------------- 
   // start local video
   function startVideo() {
-    getDeviceStream({video: true, audio: false})
+    //getDeviceStream({video: true, audio: false})
+    navigator.mediaDevices.getUserMedia({video: true, audio: false})
     .then(function (stream) { // success
       localStream = stream;
       playVideo(localVideo, stream);
@@ -105,6 +116,7 @@
     }
   }
   
+  /*--- use adapter.js ---
   function getDeviceStream(option) {
     if ('getUserMedia' in navigator.mediaDevices) {
       console.log('navigator.mediaDevices.getUserMadia');
@@ -120,6 +132,7 @@
       });      
     }
   }
+  --- use adapter.js ---*/
 
   function playVideo(element, stream) {
     if ('srcObject' in element) {
@@ -170,7 +183,6 @@
   function sendSdp(sessionDescription) {
     console.log('---sending sdp ---');
 
-
     textForSendSdp.value = sessionDescription.sdp;
     /*---
     textForSendSdp.focus();
@@ -179,6 +191,14 @@
 
     let message = JSON.stringify(sessionDescription);
     console.log('sending SDP=' + message);
+    ws.send(message);
+  }
+
+  function sendIceCandidate(candidate) {
+    console.log('---sending ICE candidate ---');
+    let obj = { type: 'candidate', ice: candidate };
+    let message = JSON.stringify(obj);
+    console.log('sending candidate=' + message);
     ws.send(message);
   }
 
@@ -209,13 +229,16 @@
         console.log(evt.candidate);
 
         // Trickle ICE の場合は、ICE candidateを相手に送る
+        sendIceCandidate(evt.candidate);
+
         // Vanilla ICE の場合には、何もしない
       } else {
         console.log('empty ice event');
 
         // Trickle ICE の場合は、何もしない
+        
         // Vanilla ICE の場合には、ICE candidateを含んだSDPを相手に送る
-        sendSdp(peer.localDescription);
+        //sendSdp(peer.localDescription);
       }
     };
 
@@ -277,8 +300,9 @@
       console.log('setLocalDescription() succsess in promise');
 
       // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+      sendSdp(peerConnection.localDescription);
+
       // -- Vanilla ICE の場合には、まだSDPは送らない --
-      //sendSdp(peerConnection.localDescription);
     }).catch(function(err) {
       console.error(err);
     });
@@ -313,8 +337,9 @@
       console.log('setLocalDescription() succsess in promise');
 
       // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+      sendSdp(peerConnection.localDescription);
+
       // -- Vanilla ICE の場合には、まだSDPは送らない --
-      //sendSdp(peerConnection.localDescription);
     }).catch(function(err) {
       console.error(err);
     });
@@ -332,6 +357,17 @@
     }).catch(function(err) {
       console.error('setRemoteDescription(answer) ERROR: ', err);
     });
+  }
+
+  // --- tricke ICE ---
+  function addIceCandidate(candidate) {
+    if (peerConnection) {
+      peerConnection.addIceCandidate(candidate);
+    }
+    else {
+      console.error('PeerConnection not exist!');
+      return;
+    }
   }
   
   // start PeerConnection

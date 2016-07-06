@@ -3,6 +3,7 @@
 <head>
  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
  <title>WebSocket Signaling 1to1</title>
+ <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
 </head>
 <body>
   WebSocket Signaling 1to1 (vanilla ICE) with adapter.js<br />
@@ -34,11 +35,13 @@
   let textForSendSdp = document.getElementById('text_for_send_sdp');
   let textToReceiveSdp = document.getElementById('text_for_receive_sdp');
 
+  /*
   // --- prefix -----
   navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
                             navigator.mozGetUserMedia || navigator.msGetUserMedia;
   RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
   RTCSessionDescription = window.RTCSessionDescription || window.webkitRTCSessionDescription || window.mozRTCSessionDescription;
+  */
 
   // -------- websocket ----
   // please use node.js app
@@ -77,7 +80,8 @@
   // ---------------------- media handling ----------------------- 
   // start local video
   function startVideo() {
-    getDeviceStream({video: true, audio: false})
+    //getDeviceStream({video: true, audio: false})
+    navigator.mediaDevices.getUserMedia({video: true, audio: false})
     .then(function (stream) { // success
       localStream = stream;
       playVideo(localVideo, stream);
@@ -105,6 +109,7 @@
     }
   }
   
+  /*--- use adapter.js ---
   function getDeviceStream(option) {
     if ('getUserMedia' in navigator.mediaDevices) {
       console.log('navigator.mediaDevices.getUserMadia');
@@ -120,6 +125,7 @@
       });      
     }
   }
+  --- use adapter.js ---*/
 
   function playVideo(element, stream) {
     if ('srcObject' in element) {
