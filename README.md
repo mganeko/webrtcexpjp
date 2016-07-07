@@ -20,7 +20,7 @@ GitHub pages はこちら https://mganeko.github.io/webrtcexpjp/
 ### (3) WebSocketを使ったシグナリングサーバーを使おう
 * WebSocketを使ったシグナリング (Vanilla ICE) [basic2016/ws_signaling_1to1_vanilla.html](/basic2016/ws_signaling_1to1_vanilla.html)
 * WebSocketを使ったシグナリング (Trickle ICE) [basic2016/ws_signaling_1to1_trickle.html](/basic2016/ws_signaling_1to1_trickle.html)
-* node.js用シグナリングサーバー (ws利用) [basic2016/server/ws_server.js](/basic2016/server/ws_server.js)
+* node.js用シグナリングサーバー (ws利用) [basic2016/server/server.js](/basic2016/server/server.js)
 * Chrome appの簡易WebSocketサーバー [Simple Message Server](https://chrome.google.com/webstore/detail/simple-message-server/bihajhgkmpfnmbmdnobjcdhagncbkmmp)
 
 ## WebRTC Meetup 10 のサンプル
