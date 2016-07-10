@@ -7,6 +7,17 @@
  <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
  -->
  <script src="http://localhost:3002/socket.io/socket.io.js"></script>
+ <script>
+   function _assert(desc, v) {
+     if (v) {
+       return;
+     }
+     else {
+       let caller = _assert.caller || 'Top level';
+       console.error('ASSERT in %s, %s is :', caller, desc, v);
+     }
+   }
+  </script>
 </head>
 <body>
   WebSocket Signaling 1to1 (trickle ICE) with adapter.js<br />
@@ -17,7 +28,8 @@
   <button type="button" onclick="hangUp();">Hang Up</button> 
   <div>
     <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
-    <video id="remote_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+  </div>
+  <div id="container">
   </div>
   <!--
   <p>SDP to send:<br />
@@ -32,11 +44,24 @@
 </body>
 <script type="text/javascript">
   let localVideo = document.getElementById('local_video');
-  let remoteVideo = document.getElementById('remote_video');
+  //let remoteVideo = document.getElementById('remote_video');
   let localStream = null;
-  let peerConnection = null;
+  //let peerConnection = null;
   //let textForSendSdp = document.getElementById('text_for_send_sdp');
   //let textToReceiveSdp = document.getElementById('text_for_receive_sdp');
+
+  // ---- for multi party -----
+  let peerConnections = [];
+  let remoteStreams = [];
+  let remoteVideos = [];
+  const MAX_CONNECTION_COUNT = 3;
+
+  // --- multi video ---
+  let container = document.getElementById('container');
+  _assert('container', container);
+  createVideoElement('aaa');
+  createVideoElement('bbb');
+  
 
   // --- prefix -----
   navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
@@ -133,15 +158,107 @@
     return '_testroom';
   }
 
-  // ---- for multi -----
+  // ---- for multi party -----
+  function isReadyToConnect() {
+    if (localStream) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
 
-  
+  // --- RTCPeerConnections ---
+  function getConnectionCount() {
+    return peerConnections.length;
+  }
+
+  function canConnect() {
+    return (getConnectionCount() < MAX_CONNECTION_COUNT);
+  }
+
+  function addConnection(id, peer) {
+    _assert('addConnection() peer', peer);
+    _assert('addConnection() peer must NOT EXIST', (! getConnection(id)));
+    peerConnections[id] = peer;
+  }
+
+  function getConnection(id) {
+    let peer = peerConnections[id];
+    _assert('getConnection() peer must exist', peer);
+    return peer;
+  }
+
+  function deleteConnection(id) {
+    _assert('deleteConnection() peer must exist', peerConnections[id]);
+    delete peerConnections[id];
+  }
+
+  // --- remote streams ---
+  function addRemoteStream(id, stream) {
+    _assert('addRemoteStream() stream', stream);
+    _assert('addRemoteStream() stream must NOT EXIST', (! getRemoteStream(id)));
+    remoteStreams[id] = stream;
+  }
+
+  function getRemoteStream(id) {
+    let stream = remoteStreams[id];
+    _assert('getRemoteStream() stream must exist', stream);
+    return stream;
+  }
+
+  function deleteRemoteStream(id) {
+    _assert('deleteRemoteStream() stream must exist', remoteStreams[id]);
+    delete remoteStreams[id];
+  }
+
+  // --- video elements ---  
+  function addRemoteVideoElement(id) {
+    _assert('addRemoteVideoElement() video must NOT EXIST', (! getRemoteVideoElement(id)));
+    let video = createVideoElement('remote_video_' + id);
+    remoteVideos[id] = video;
+    return video;
+  }
+
+  function getRemoteVideoElement(id) {
+    let video = remoteVideos[id];
+    _assert('getRemoteVideoElement() video must exist', video);
+    return video;
+  }
+
+  function deleteRemoteVideoElement(id) {
+    _assert('deleteRemoteVideoElement() stream must exist', remoteVideos[id]);
+    removeVideoElement('remote_video_' + id);
+    delete remoteVideos[id];
+  }
+
+  function createVideoElement(elementId) {
+    let video = document.createElement('video');
+    video.width = '160';
+    video.height = '120';
+    video.id = elementId;
+
+    video.style.border = 'solid black 1px';
+    video.style.margin = '2px';
+
+    container.appendChild(video);
+
+    return video;
+  }
+
+  function removeVideoElement(elementId) {
+    let video = document.getElementById(elementId);
+    _assert('removeVideoElement() video must exist', video);
+
+    container.removeChild(video);
+    return video;
+  }
 
   // ---------------------- media handling ----------------------- 
   // start local video
   function startVideo() {
-    getDeviceStream({video: true, audio: false})
-    //navigator.mediaDevices.getUserMedia({video: true, audio: false})
+    getDeviceStream({video: true, audio: true}) // audio: false
+    //navigator.mediaDevices.getUserMedia({video: true, audio: true})
     .then(function (stream) { // success
       localStream = stream;
       playVideo(localVideo, stream);
