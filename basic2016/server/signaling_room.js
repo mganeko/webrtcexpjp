@@ -110,7 +110,7 @@ io.on('connection', function(socket) {
         }
 
         // --- emit ----
-        emitMessage('user disconnected', {id: socket.id, members: count});
+        emitMessage('user disconnected', {id: socket.id});
     });
 
 });
