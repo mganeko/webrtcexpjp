@@ -59,9 +59,6 @@
   // --- multi video ---
   let container = document.getElementById('container');
   _assert('container', container);
-  createVideoElement('aaa');
-  createVideoElement('bbb');
-  
 
   // --- prefix -----
   navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
@@ -144,13 +141,16 @@
       console.log(candidate);
       addIceCandidate(fromId, candidate);
     }
-    else if (massage.type === 'call me') {
+    else if (message.type === 'call me') {
       if (! isReadyToConnect()) {
         console.log('Not ready to connect, so ignore');
         return;
       }
+      else if (! canConnectMore()) {
+        console.warn('TOO MANY connections, so ignore');
+      }
 
-      if (getConnection(fromId)) {
+      if (isConnectedWith(fromId)) {
         // already connnected, so skip
         console.log('already connected, so ignore');
       }
@@ -161,6 +161,7 @@
     }
     else if (massage.type === 'user disconnected') {
       // -- force disconnect --
+      stopConnection(fromId);
     }
   });
 
@@ -202,13 +203,22 @@
     return peerConnections.length;
   }
 
-  function canConnect() {
+  function canConnectMore() {
     return (getConnectionCount() < MAX_CONNECTION_COUNT);
+  }
+
+  function isConnectedWith(id) {
+    if (peerConnections[id])  {
+      return true;
+    }
+    else {
+      return false;
+    }
   }
 
   function addConnection(id, peer) {
     _assert('addConnection() peer', peer);
-    _assert('addConnection() peer must NOT EXIST', (! getConnection(id)));
+    _assert('addConnection() peer must NOT EXIST', (! peerConnections[id]));
     peerConnections[id] = peer;
   }
 
@@ -226,8 +236,8 @@
   function stopConnection(id) {
     detachVideo(id);
 
-    let peer = getConenction(id);
-    if (peer) {
+    if (isConnectedWith(id)) {
+      let peer = getConenction(id);
       peer.close();
       deleteConnection(id);
     }
@@ -241,7 +251,7 @@
   // --- remote streams ---
   function addRemoteStream(id, stream) {
     _assert('addRemoteStream() stream', stream);
-    _assert('addRemoteStream() stream must NOT EXIST', (! getRemoteStream(id)));
+    _assert('addRemoteStream() stream must NOT EXIST', (! remoteStreams[id]));
     remoteStreams[id] = stream;
   }
 
@@ -270,7 +280,7 @@
   }
 
   function addRemoteVideoElement(id) {
-    _assert('addRemoteVideoElement() video must NOT EXIST', (! getRemoteVideoElement(id)));
+    _assert('addRemoteVideoElement() video must NOT EXIST', (! remoteVideos[id]));
     let video = createVideoElement('remote_video_' + id);
     remoteVideos[id] = video;
     return video;
@@ -525,6 +535,7 @@
   }
 
   function makeOffer(id) {
+    _assert('makeOffer must not connected yet', (! isConnectedWith(id)) );
     peerConnection = prepareNewConnection(id);
     addConnection(id, peerConnection);
 
@@ -550,7 +561,10 @@
       console.error('peerConnection alreay exist!');
     }
     */
+    _assert('setOffer must not connected yet', (! isConnectedWith(id)) );    
     let peerConnection = prepareNewConnection(id);
+    addConnection(id, peerConnection);
+    
     peerConnection.setRemoteDescription(sessionDescription)
     .then(function() {
       console.log('setRemoteDescription(offer) succsess in promise');
@@ -562,6 +576,7 @@
   
   function makeAnswer(id) {
     console.log('sending Answer. Creating remote session description...' );
+    let peerConnection = getConnection(id);
     if (! peerConnection) {
       console.error('peerConnection NOT exist!');
       return;
@@ -612,6 +627,7 @@
   
   // start PeerConnection
   function connect() {
+    /*
     debugger; // SHOULD NOT COME HERE
 
     if (! peerConnection) {
@@ -620,6 +636,17 @@
     }
     else {
       console.warn('peer already exist.');
+    }
+    */
+
+    if (! isReadyToConnect()) {
+      console.warn('NOT READY to connect');
+    }
+    else if (! canConnectMore()) {
+      console.log('TOO MANY connections');
+    }
+    else {
+      callMe();
     }
   }
 

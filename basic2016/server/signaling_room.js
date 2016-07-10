@@ -87,7 +87,7 @@ io.on('connection', function(socket) {
 
         // get send target
         var target = message.sendto;
-        if ( (target) && (target != BROADCAST_ID) ) {
+        if (target) {
           console.log('===== message emit to -->' + target);
           socket.to(target).emit('message', message);
           return;
