@@ -159,8 +159,13 @@
         makeOffer(fromId);
       }
     }
+    else if (message.type === 'bye') {
+      if (isConnectedWith(fromId)) {
+        stopConnection(fromId);
+      }
+    }
     /*--
-    else if (massage.type === 'user disconnected') {
+    else if (message.type === 'user disconnected') {
       // -- force disconnect --
       console.log('--user disconnected:', message);
       if (isConnectedWith(fromId)) {
@@ -256,8 +261,9 @@
   }
 
   function stopAllConnection() {
-    console.warn('NOT YET');
-    debugger;
+    for (let id in peerConnections) {
+      stopConnection(id);
+    }
   }
 
   /* --- not used ----
@@ -502,7 +508,6 @@
         }
         else {
           //playVideo(remoteVideo, stream);
-          addRemoteStream(id, stream);
           attachVideo(id, stream);
         }
       };
@@ -531,7 +536,7 @@
         // Trickle ICE の場合は、何もしない
         
         // Vanilla ICE の場合には、ICE candidateを含んだSDPを相手に送る
-        //sendSdp(peer.localDescription);
+        //sendSdp(id, peer.localDescription);
       }
     };
 
@@ -715,8 +720,8 @@
       console.warn('peer NOT exist.');
     }
     */
-    console.warn('   sendBye() ');
-    
+
+    emitRoom({ type: 'bye' });  
     stopAllConnection();
   }
 
