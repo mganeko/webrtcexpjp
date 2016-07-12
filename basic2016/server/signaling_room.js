@@ -103,14 +103,14 @@ io.on('connection', function(socket) {
         // close user connection
         console.log((new Date()) + ' Peer disconnected. id=' + socket.id);
 
+        // --- emit ----
+        emitMessage('user disconnected', {id: socket.id});
+
         // --- leave room --
         var roomname = getRoomname();
         if (roomname) {
           socket.leave(roomname);
         }
-
-        // --- emit ----
-        emitMessage('user disconnected', {id: socket.id});
     });
 
 });
