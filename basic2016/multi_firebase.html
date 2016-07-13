@@ -166,6 +166,10 @@
       console.log('roomBroadcastRef.on(data) data.key=' + data.key + ', data.val():', data.val());
       let message = data.val();
       let fromId = message.from;
+      if (fromId === clientId) {
+        // ignore self message
+        return;
+      }
       
       if (message.type === 'call me') {
         if (! isReadyToConnect()) {
@@ -200,21 +204,21 @@
 
       if (message.type === 'offer') {
         // -- got offer ---
-        console.log('Received offer ...');
+        console.log('Received offer ... fromId=' + fromId);
         //let offer = message.sessionDescription;
         let offer = new RTCSessionDescription(message);
         setOffer(fromId, offer);
       }
       else if (message.type === 'answer') {
         // --- got answer ---
-        console.log('Received answer ...');
+        console.log('Received answer ... fromId=' + fromId);
         //let answer = message.sessionDescription;
         let answer = new RTCSessionDescription(message);
         setAnswer(fromId, answer);
       }
       else if (message.type === 'candidate') {
         // --- got ICE candidate ---
-        console.log('Received ICE candidate ...');
+        console.log('Received ICE candidate ... fromId=' + fromId);
         let candidate = new RTCIceCandidate(JSON.parse(message.ice)); // <---- JSON
         console.log(candidate);
         addIceCandidate(fromId, candidate);
@@ -237,6 +241,7 @@
     //msg.sendto = id;
     //socket.emit('message', msg);
 
+    console.log('===== sending from=' + clientId + ' ,  to=' + id);
     msg.from = clientId;
     database.ref('basic2016/multi/rooms/' + room + '/_direct_/' + id).push(msg);
   }
