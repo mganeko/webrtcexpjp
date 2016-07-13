@@ -146,6 +146,7 @@
     apiKey: "AIzaSyD4_CTIcIgX0X2t2o7oVJvXwWLRuHBfPSA",  // <-- please set your API key
     databaseURL: "https://webrtcexpjp.firebaseio.com",  // <-- please set your database URL
   };
+  let databaseRoot = 'basic2016/multi/rooms/'; // <--- plaase set your database root for signaling
   firebase.initializeApp(config);
   let database = firebase.database();
   let roomBroadcastRef;
@@ -157,11 +158,11 @@
   function joinRoom() {
     console.log('join room name = ' + room);
 
-    var key = database.ref('basic2016/multi/rooms/' + room + '/_join_').push({ joined : 'unknown'}).key
+    var key = database.ref(databaseRoot + room + '/_join_').push({ joined : 'unknown'}).key
     clientId = 'member_' + key;
     console.log('joined to room=' + room + ' as clientId=' + clientId);
 
-    roomBroadcastRef = database.ref('basic2016/multi/rooms/' + room + '/broadcast');
+    roomBroadcastRef = database.ref(databaseRoot + room + '/_broadcast_');
     roomBroadcastRef.on('child_added', function(data) {
       console.log('roomBroadcastRef.on(data) data.key=' + data.key + ', data.val():', data.val());
       let message = data.val();
@@ -196,7 +197,7 @@
       }
     });
 
-    clientRef = database.ref('basic2016/multi/rooms/' + room + '/_direct_/' + clientId);
+    clientRef = database.ref(databaseRoot + room + '/_direct_/' + clientId);
     clientRef.on('child_added', function(data) {
       console.log('clientRef.on(data)  data.key=' + data.key + ', data.val():', data.val());
       let message = data.val();
@@ -219,6 +220,7 @@
       else if (message.type === 'candidate') {
         // --- got ICE candidate ---
         console.log('Received ICE candidate ... fromId=' + fromId);
+        //let candidate = new RTCIceCandidate(message.ice);
         let candidate = new RTCIceCandidate(JSON.parse(message.ice)); // <---- JSON
         console.log(candidate);
         addIceCandidate(fromId, candidate);
@@ -243,9 +245,13 @@
 
     console.log('===== sending from=' + clientId + ' ,  to=' + id);
     msg.from = clientId;
-    database.ref('basic2016/multi/rooms/' + room + '/_direct_/' + id).push(msg);
+    database.ref(databaseRoot + room + '/_direct_/' + id).push(msg);
   }
 
+  function clearMessage() {
+    clientRef.set({});
+  }
+  
   // -- room名を取得 --
   function getRoomName() { // たとえば、 URLに  ?roomname  とする
     let url = document.location.href;
@@ -776,6 +782,7 @@
     */
 
     emitRoom({ type: 'bye' });  
+    clearMessage(); // clear firebase
     stopAllConnection();
   }
 
