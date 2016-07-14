@@ -31,6 +31,9 @@
   &nbsp;
   <button type="button" onclick="connect();">Connect</button>
   <button type="button" onclick="hangUp();">Hang Up</button> 
+  &nbsp;
+  <a id="room_link" href="" target="_blank">link to this room</a>
+  <a id="mail_link" href="" target="_blank">mail link</a>
   <div>
     <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
   </div>
@@ -154,6 +157,7 @@
   let clientId;
 
   joinRoom(room);
+  setRoomLink(room);
 
   function joinRoom() {
     console.log('join room name = ' + room);
@@ -225,10 +229,21 @@
         console.log(candidate);
         addIceCandidate(fromId, candidate);
       }
+      
+      // remove direct message
+      let messageRef =  database.ref(databaseRoot + room + '/_direct_/' + clientId + '/' + data.key);
+      messageRef.remove();
     });
   }
   
-    
+  function setRoomLink(room) {
+    let url = document.location.href;
+    let anchorLink = document.getElementById('room_link');
+    anchorLink.href = url;
+    let anchorMail = document.getElementById('mail_link');
+    let mailtoUrl = 'mailto:?subject=invitation-of-multi-party-videochat&body=' + url;
+    anchorMail.href = mailtoUrl;
+  }
   // ----- use firebase.io ---- //
   
 
@@ -262,8 +277,21 @@
         return room;
       }
     }
-    return '_testroom';
+    
+    // generate rondom room, and replace URL
+    let room = 'room_' + getUniqueStr(); 
+    window.history.pushState(null, null, 'multi_firebase.html?' + room);
+    return room;
   }
+
+  // http://qiita.com/coa00@github/items/679b0b5c7c468698d53f
+  // 疑似ユニークIDを生成
+  function getUniqueStr(myStrong){
+    var strong = 1000;
+    if (myStrong) strong = myStrong;
+    return new Date().getTime().toString(16)  + Math.floor(strong*Math.random()).toString(16);
+  }
+
 
   // ---- for multi party -----
   function isReadyToConnect() {
@@ -411,8 +439,8 @@
 
   function createVideoElement(elementId) {
     let video = document.createElement('video');
-    video.width = '160';
-    video.height = '120';
+    video.width = '240';
+    video.height = '180';
     video.id = elementId;
 
     video.style.border = 'solid black 1px';
@@ -449,6 +477,7 @@
   function stopVideo() {
     pauseVideo(localVideo);
     stopLocalStream(localStream);
+    localStream = null;
   }
 
   function stopLocalStream(stream) {
@@ -555,7 +584,7 @@
 
   // ---------------------- connection handling -----------------------
   function prepareNewConnection(id) {
-    let pc_config = {"iceServers":[]};
+    let pc_config = {"iceServers":[{"urls": "stun:stun.l.google.com:19302"}]}; // for STUN server
     let peer = new RTCPeerConnection(pc_config);
 
     // --- on get remote stream ---
