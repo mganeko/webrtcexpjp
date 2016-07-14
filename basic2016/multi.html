@@ -389,6 +389,7 @@
   function stopVideo() {
     pauseVideo(localVideo);
     stopLocalStream(localStream);
+    localStream = null;
   }
 
   function stopLocalStream(stream) {
