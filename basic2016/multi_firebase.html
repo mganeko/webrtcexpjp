@@ -165,6 +165,7 @@
     var key = database.ref(databaseRoot + room + '/_join_').push({ joined : 'unknown'}).key
     clientId = 'member_' + key;
     console.log('joined to room=' + room + ' as clientId=' + clientId);
+    database.ref(databaseRoot + room + '/_join_/' + key).update({ joined : clientId});
 
     roomBroadcastRef = database.ref(databaseRoot + room + '/_broadcast_');
     roomBroadcastRef.on('child_added', function(data) {
