@@ -20,8 +20,16 @@ GitHub pages はこちら https://mganeko.github.io/webrtcexpjp/
 ### (3) WebSocketを使ったシグナリングサーバーを使おう
 * WebSocketを使ったシグナリング (Vanilla ICE) [basic2016/ws_signaling_1to1_vanilla.html](/basic2016/ws_signaling_1to1_vanilla.html)
 * WebSocketを使ったシグナリング (Trickle ICE) [basic2016/ws_signaling_1to1_trickle.html](/basic2016/ws_signaling_1to1_trickle.html)
-* node.js用シグナリングサーバー (ws利用) [basic2016/server/server.js](/basic2016/server/signaling.js)
+* node.js用シグナリングサーバー (ws利用) [basic2016/server/signaling.js](/basic2016/server/signaling.js)
 * Chrome appの簡易WebSocketサーバー [Simple Message Server](https://chrome.google.com/webstore/detail/simple-message-server/bihajhgkmpfnmbmdnobjcdhagncbkmmp)
+
+### (4) シグナリングを拡張して、多人数でビデオチャットしよう
+* socket.ioを使って、多人数ビデオチャット [basic2016/multi.html](/basic2016/multi.html)
+* node.jsとsocket.ioを使った、多会議室、多人数対応のシグナリングサーバー [basic2016/server/signaling_room.js](/basic2016/server/signaling_room.js)
+
+### 多人数ビデチャット番外編
+* 番外編：Firebaseを使ってシグナリングを行う多人数ビデオチャット [basic2016/multi_firebase.html](/basic2016/multi_firebase.html)
+
 
 ## WebRTC Meetup 10 のサンプル
 Chrome 50 で動作確認
