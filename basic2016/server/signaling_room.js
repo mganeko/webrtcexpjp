@@ -1,6 +1,6 @@
 "use strict";
 
-// Please install ws module
+// Please install socket.io module
 //   npm install socket.io
 //
 // Run
