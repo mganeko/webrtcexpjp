@@ -3,9 +3,6 @@
 <head>
  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
  <title>multi party</title>
- <!--
- <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
- -->
  <script src="http://localhost:3002/socket.io/socket.io.js"></script>
  <script>
    function _assert(desc, v) {
@@ -52,7 +49,7 @@
 
   // ---- for multi party -----
   let peerConnections = [];
-  let remoteStreams = [];
+  //let remoteStreams = [];
   let remoteVideos = [];
   const MAX_CONNECTION_COUNT = 3;
 
@@ -123,14 +120,12 @@
     if (message.type === 'offer') {
       // -- got offer ---
       console.log('Received offer ...');
-      //let offer = message.sessionDescription;
       let offer = new RTCSessionDescription(message);
       setOffer(fromId, offer);
     }
     else if (message.type === 'answer') {
       // --- got answer ---
       console.log('Received answer ...');
-      //let answer = message.sessionDescription;
       let answer = new RTCSessionDescription(message);
       setAnswer(fromId, answer);
     }
@@ -164,15 +159,6 @@
         stopConnection(fromId);
       }
     }
-    /*--
-    else if (message.type === 'user disconnected') {
-      // -- force disconnect --
-      console.log('--user disconnected:', message);
-      if (isConnectedWith(fromId)) {
-        stopConnection(fromId);
-      }
-    }
-    --*/
   });
   socket.on('user disconnected', function(evt) {
     console.log('====user disconnected==== evt:', evt);
@@ -266,48 +252,6 @@
     }
   }
 
-  /* --- not used ----
-  // --- remote streams ---
-  const ID_SPLITER = ':';
-  function addRemoteStream(id, stream) {
-    _assert('addRemoteStream() id=' + id + 'stream:', stream);
-    let concatId = id + ID_SPLITER + stream.id;
-    console.log('add remote steram, concatId=' + concatId);
-    _assert('addRemoteStream() stream must NOT EXIST', (! remoteStreams[concatId]));
-    remoteStreams[concatId] = stream;
-  }
-
-  function getRemoteStream(id) {
-    let stream = remoteStreams[id];
-    _assert('getRemoteStream() stream must exist', stream);
-    return stream;
-  }
-
-  function deleteRemoteStream(id) {
-    for (let key in remoteStreams) {
-      console.log('concatId=' + concatId);
-      let ids = key.split(ID_SPLITER);
-      let peerId = ids[0];
-      let streamId = ids[1];
-      if (peerId === id) {
-        delete remoteStreams[id];
-      }
-    }
-  }
-
-  function isRemoteStreamExist(id, stream) {
-    let concatId = id + ID_SPLITER + stream.id;
-    for (let key in remoteStreams) {
-      console.log('isRemoteStreamExist key=' + key);
-      if (key === concatId) {
-        return true;
-      }
-    }
-    
-    return false;    
-  }
-  --- not used ----*/
-
   // --- video elements ---
   function attachVideo(id, stream) {
     let video = addRemoteVideoElement(id);
@@ -375,7 +319,6 @@
   // start local video
   function startVideo() {
     getDeviceStream({video: true, audio: true}) // audio: false <-- ontrack once, audio:true --> ontrack twice!!
-    //navigator.mediaDevices.getUserMedia({video: true, audio: true})
     .then(function (stream) { // success
       localStream = stream;
       playVideo(localVideo, stream);
@@ -480,7 +423,6 @@
     let message = { type: sessionDescription.type, sdp: sessionDescription.sdp };
     console.log('sending SDP=' + message);
     //ws.send(message);
-    //socket.emit('message', message);
     emitTo(id, message);
   }
 
@@ -490,7 +432,6 @@
     //let message = JSON.stringify(obj);
     //console.log('sending candidate=' + message);
     //ws.send(message);
-    //socket.emit('message', obj);
     emitTo(id, obj);
   }
 
