@@ -22,47 +22,71 @@
         &nbsp; or Drag&Drop Audio file here:<br/>
         &nbsp;&nbsp; <span id="selected_audio_filename"></span>
       </div>
-      <audio id="local_audio" autoplay controls="1" style="width: 240px; border: 1px solid black; margin-top:5px;"></audio>&nbsp;&nbsp;
+      <audio id="local_audio" autoplay controls="1" style="width: 280px; border: 1px solid black; margin-top:5px;"></audio>&nbsp;&nbsp;
     </div>
 
     <br />
-    <button type="button" onclick="startVideo();">Start</button>
-    <button type="button" onclick="stopVideo();">Stop</button>
+    Convert file to stream: 
+    <button type="button" onclick="startConvert();">Start</button>
+    <button type="button" onclick="stopConvert();">Stop</button>
     <br />
-    <video id="monitor_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+    <video id="monitor_video" autoplay controls="1" style="width: 240px; height: 180px; border: 1px solid black;"></video>
+    <br />
+    Working canvas size:
+    <select id="canvas_select" onchange="setSelectedCanvasSize()">
+      <option value="Source Size">Source Size</option>
+      <option value="640x480">640x480</option>      
+      <option value="1280x720">1280x720</option>      
+      <option value="1920x1080">1920x1080</option>      
+      <option value="800x200">800x200</option>      
+    </select>
     <br />
     <canvas id="duplicate_canvas" width="640px" height="480px" style="border: 1px solid black;"></canvas><br />
   </div>
 </body>
 <script type="text/javascript">
+  // --- prefix -----
+  MediaStream = window.MediaStream || window.webkitMediaStream || window.mozMediaStream;
+
+  // -- for local video file --
   let selectedVideoFile = document.getElementById('selected_video_file');
   let dropVideoDiv = document.getElementById('droped_video_file');
   let selectedVideoFilenameSpan = document.getElementById('selected_video_filename');
-  dropVideoDiv.ondrop = onFileDrop;
-  dropVideoDiv.ondragover = onFileDragOver;
-  dropVideoDiv.ondragleave = onFileLeave;
+  dropVideoDiv.ondrop = onVideoFileDrop;
+  dropVideoDiv.ondragover = onVideoFileDragOver;
+  dropVideoDiv.ondragleave = onVideoFileLeave;
+  let localVideo = document.getElementById('local_video');
+  let videoFileToPlay = null;
 
+  // -- for local audio file ---
   let selectedAudioFile = document.getElementById('selected_audio_file');
   let dropAudioDiv = document.getElementById('droped_audio_file');
-  dropAudioDiv.ondrop = onFileDrop;
-  dropAudioDiv.ondragover = onFileDragOver;
-  dropAudioDiv.ondragleave = onFileLeave;
-  //let videoURL = document.getElementById('video_url');
+  let selectedAudioFilenameSpan = document.getElementById('selected_audio_filename');
+  dropAudioDiv.ondrop = onAudioFileDrop;
+  dropAudioDiv.ondragover = onAudioFileDragOver;
+  dropAudioDiv.ondragleave = onAudioFileLeave;
   let localAudio = document.getElementById('local_audio');
-  let monitorAudio = document.getElementById('monitor_audio');
   let audioFileToPlay = null;
 
+  //let monitorAudio = document.getElementById('monitor_audio');
 
+  // -- converted stream ---
+  let monitorVideo = document.getElementById('monitor_video');
+  let convertedStream = null;
+
+
+  // -- video stream --
   let duplicateCanvas = document.getElementById('duplicate_canvas');
   let ctxDuplicate = duplicateCanvas.getContext('2d');
-  let localVideo = document.getElementById('local_video');
-  let monitorVideo = document.getElementById('monitor_video');
-  let videoFileToPlay = null;
   let animationId = null;
   let duplicateStream = duplicateCanvas.captureStream(30);
+  let canvasSelect = document.getElementById('canvas_select');
+  let selectedCanvasSize = "Source Size";
+  
 
   // --- audio -----
   let audioContext = new AudioContext();
+  let audioSourceBuffer = null;
   let audioSource = null;
   let audioOutputNode = null;
   let audioOutputSteram = null;
@@ -75,6 +99,7 @@
       console.warn('file not selected');
       return;
     }
+    stopVideo();
 
     videoFileToPlay = selectedVideoFile.files[0];
     console.log('selected file=' + videoFileToPlay.name);
@@ -82,7 +107,7 @@
     startVideo();
   }
 
-  function onFileDrop(evt) {
+  function onVideoFileDrop(evt) {
     //console.log('onFileDrop() evt:', evt);
     console.log(evt.dataTransfer.files);
     evt.stopPropagation();
@@ -90,6 +115,7 @@
     dropVideoDiv.style.backgroundColor = '#EEEEEE'; 
 
     if (evt.dataTransfer.files.length > 0) {
+      stopVideo();
       videoFileToPlay = evt.dataTransfer.files[0];
       console.log('dropped file=' + videoFileToPlay.name);
       selectedVideoFilenameSpan.innerHTML = videoFileToPlay.name;
@@ -97,7 +123,7 @@
     }    
   }
 
-  function onFileDragOver(evt) {
+  function onVideoFileDragOver(evt) {
     //console.log('onFileDragOver() evt:', evt);
     evt.stopPropagation();
     evt.preventDefault();　// <-- must to avoid open file in browser
@@ -105,37 +131,15 @@
     dropVideoDiv.style.backgroundColor = '#F0E0E0'; 
   }
 
-  function onFileLeave(evt) {
+  function onVideoFileLeave(evt) {
     //evt.stopPropagation();
     //evt.preventDefault();
     dropVideoDiv.style.backgroundColor = '#EEEEEE'; 
   }
 
-  /*--
-  function loadVideo() {
-    pauseVideo(monitorVideo);
-    pauseVideo(localVideo);
-    
-    localVideo.src = videoURL.value;
-    localVideo.play();
-    localVideo.loop = true;
-    localVideo.onloadedmetadata = function() {
-      console.log('localVide metadeta width=' + localVideo.videoWidth + ' , height=' + localVideo.videoHeight);
-      duplicateCanvas.width = localVideo.videoWidth;
-      duplicateCanvas.height = localVideo.videoHeight;
-      if (ctxDuplicate) {
-        ctxDuplicate = null;
-      }
-      ctxDuplicate = duplicateCanvas.getContext('2d');
-      playVideo(monitorVideo, duplicateStream); // Only from same origin
-    }
-    animationId = window.requestAnimationFrame(drawCanvas);
-  }
-  --*/
-
   // start local video
   function startVideo() {
-    pauseVideo(monitorVideo);
+    //pauseVideo(monitorVideo);
     pauseVideo(localVideo);
 
     if (! videoFileToPlay) {
@@ -147,27 +151,71 @@
     localVideo.loop = true;
     localVideo.onloadedmetadata = function() {
       console.log('localVide metadeta width=' + localVideo.videoWidth + ' , height=' + localVideo.videoHeight);
-      duplicateCanvas.width = localVideo.videoWidth;
-      duplicateCanvas.height = localVideo.videoHeight;
-      if (ctxDuplicate) {
-        ctxDuplicate = null;
+      if (selectedCanvasSize === 'Source Size') {
+        duplicateCanvas.width = localVideo.videoWidth;
+        duplicateCanvas.height = localVideo.videoHeight;
+        //if (ctxDuplicate) {
+        //  ctxDuplicate = null;
+        //}
+        //ctxDuplicate = duplicateCanvas.getContext('2d');
+        ////playVideo(monitorVideo, duplicateStream);
       }
-      ctxDuplicate = duplicateCanvas.getContext('2d');
-      playVideo(monitorVideo, duplicateStream);
     }
-    animationId = window.requestAnimationFrame(drawCanvas);
+    //animationId = window.requestAnimationFrame(drawCanvas);
   }
 
   // stop local video
   function stopVideo() {
     pauseVideo(localVideo);
  
-    if (animationId) {
-      window.cancelAnimationFrame(animationId);
-      animationId = null;
-    }
+    //if (animationId) {
+    //  window.cancelAnimationFrame(animationId);
+    //  animationId = null;
+    //}
   }
 
+  function drawCanvas() {
+    ctxDuplicate.drawImage(localVideo, 0, 0, localVideo.videoWidth, localVideo.videoHeight,
+      0, 0, duplicateCanvas.width , duplicateCanvas.height
+    );
+
+    // animation frame will be drop down, when window is hidden.
+    animationId = window.requestAnimationFrame(drawCanvas);
+  }
+
+  function setSelectedCanvasSize() {
+    selectedCanvasSize = canvasSelect.options[canvasSelect.selectedIndex].value;
+    console.log('selected canvas size=' + selectedCanvasSize);
+    if (selectedCanvasSize === 'Source Size') {
+      if (localVideo.videoWidth && localVideo.videoHeight) {
+        // source size
+        duplicateCanvas.width = localVideo.videoWidth;
+        duplicateCanvas.height = localVideo.videoHeight
+      }
+    }
+    else if (selectedCanvasSize === '640x480') {
+      duplicateCanvas.width = 640;
+      duplicateCanvas.height = 480;
+    }
+    else if (selectedCanvasSize === '1280x720') {
+      duplicateCanvas.width = 1280;
+      duplicateCanvas.height = 720;
+    }
+    else if (selectedCanvasSize === "1920x1080") {
+      duplicateCanvas.width = 1920;
+      duplicateCanvas.height = 1080;
+    }
+    else if (selectedCanvasSize === "800x200") {
+      duplicateCanvas.width = 800;
+      duplicateCanvas.height = 200;
+    }
+    else {
+      duplicateCanvas.width = 640;
+      duplicateCanvas.height = 480;
+    }
+
+    console.log()
+  }
 
   // ---------------------- audio handling ----------------------- 
   function setSelectedAudioFile() {
@@ -178,7 +226,37 @@
 
     audioFileToPlay = selectedAudioFile.files[0];
     console.log('selected file=' + audioFileToPlay.name);
+    selectedAudioFilenameSpan.innerHTML = audioFileToPlay.name;
     startAudio();
+  }
+
+  function onAudioFileDrop(evt) {
+    //console.log('onFileDrop() evt:', evt);
+    console.log(evt.dataTransfer.files);
+    evt.stopPropagation();
+    evt.preventDefault();
+    dropAudioDiv.style.backgroundColor = '#EEEEEE'; 
+
+    if (evt.dataTransfer.files.length > 0) {
+      audioFileToPlay = evt.dataTransfer.files[0];
+      console.log('dropped file=' + audioFileToPlay.name);
+      selectedAudioFilenameSpan.innerHTML = audioFileToPlay.name;
+      startAudio();
+    }    
+  }
+
+  function onAudioFileDragOver(evt) {
+    //console.log('onFileDragOver() evt:', evt);
+    evt.stopPropagation();
+    evt.preventDefault();　// <-- must to avoid open file in browser
+
+    dropAudioDiv.style.backgroundColor = '#F0E0E0'; 
+  }
+
+  function onAudioFileLeave(evt) {
+    //evt.stopPropagation();
+    //evt.preventDefault();
+    dropAudioDiv.style.backgroundColor = '#EEEEEE'; 
   }
 
   // start local video
@@ -212,6 +290,7 @@
       console.log('reader.onload(), evt:', evt);
       audioContext.decodeAudioData(reader.result, function(buffer) {
         //playAudioContext(buffer);
+        audioSourceBuffer = buffer;
       });
     }
     reader.onloadend = function(evt) {
@@ -222,6 +301,89 @@
     }
   }
 
+  function startAudioStream() {
+    // source を作成
+    audioSource = audioContext.createBufferSource();
+    // buffer をセット
+    audioSource.buffer = audioSourceBuffer;
+    // context に connect
+    //audioSource.connect(audioContext.destination);
+
+    // Set parameters
+    audioSource.loop　= true;
+    //source.loopStart = 0;
+    //source.loopEnd = audioBuffer.duration;
+    //source.playbackRate.value = 2.0;
+
+
+    //audioSource.start(0);
+
+    // audioStream
+    audioOutputNode = audioContext.createMediaStreamDestination();
+	  audioOutputStream = audioOutputNode.stream;
+    audioSource.connect(audioOutputNode);
+
+    // 開始
+    audioSource.start(0);
+  }
+
+  function stopAudioStream() {
+    if (audioSource) {
+      audioSource.stop();
+      if (audioOutputStream) {
+        stopLocalStream(audioOutputStream);
+        audioOutputStream = null;
+      }
+      audioOutputNode = null;
+      audioSource = null;
+    }
+  }
+
+  // ---------- convert to stream ----
+  function startConvert() {
+    pauseVideo(monitorVideo);
+
+    // mix video / audio
+    convertedStream = new MediaStream();
+
+    if (videoFileToPlay) {
+      // -- convert video with canvas ---
+      if (ctxDuplicate) {
+        ctxDuplicate = null;
+      }
+      ctxDuplicate = duplicateCanvas.getContext('2d');
+      animationId = window.requestAnimationFrame(drawCanvas);
+
+      convertedStream.addTrack(duplicateStream.getVideoTracks()[0]);
+    }
+
+    if (audioFileToPlay) {
+      startAudioStream();
+      convertedStream.addTrack(audioOutputStream.getAudioTracks()[0]);
+    }
+
+    playVideo(monitorVideo, convertedStream);
+    monitorVideo.volume = 1.0;
+  }
+
+  function stopConvert() {
+    pauseVideo(monitorVideo);
+
+    // stop stream
+    if (convertedStream) {
+      //stopLocalStream(convertedStream);
+      convertedStream = null;
+    }
+
+    // stop video convert
+    if (animationId) {
+      window.cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+
+    // stop audio convert
+    stopAudioStream();
+  }
 
   // --------------------------------------
   function stopLocalStream(stream) {
@@ -239,14 +401,7 @@
     }
   }
 
-  function drawCanvas() {
-    ctxDuplicate.drawImage(localVideo, 0, 0, localVideo.videoWidth, localVideo.videoHeight,
-      0, 0, duplicateCanvas.width , duplicateCanvas.height
-    );
 
-    // animation frame will be drop down, when window is hidden.
-    animationId = window.requestAnimationFrame(drawCanvas);
-  }
 
   function playVideo(element, stream) {
     //if ('srcObject' in element) {
