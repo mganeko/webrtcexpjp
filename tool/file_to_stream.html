@@ -7,22 +7,25 @@
 <body>
   <h4>Local Video/Audio files to stream</h4>
   <div id="file_to_stream_box">
-    <div id="video_select_box" style="width:40%; display: inline-block;">
-      select local video file: <input id="selected_video_file" type="file" onchange="setSelectedVideoFile()"></input>
-      <div id="droped_video_file" style="height:50px; width:100%; border: 1px solid black; background-color: #EEEEEE; paddig:5px;　display: inline-block;">
-        &nbsp; or Drag&Drop Video file here:<br />
-        &nbsp;&nbsp; <span id="selected_video_filename"></span>
+    <input id="show_file_select_check" type="checkbox" checked="1" onchange="switchFileSelectBox()">Show File select UI</input><br />
+    <div id="file_select_box">
+      <div id="video_select_box" style="width:40%; display: inline-block;">
+        select local video file: <input id="selected_video_file" type="file" onchange="setSelectedVideoFile()"></input>
+        <div id="droped_video_file" style="height:50px; width:100%; border: 1px solid black; background-color: #EEEEEE; paddig:5px;　display: inline-block;">
+          &nbsp; or Drag&Drop Video file here:<br />
+          &nbsp;&nbsp; <span id="selected_video_filename"></span>
+        </div>
+        <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black; margin-top:5px;"></video>&nbsp;&nbsp;
       </div>
-      <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black; margin-top:5px;"></video>&nbsp;&nbsp;
-    </div>
 
-    <div id="audio_select_box" style="width:40%;  display: inline-block; vertical-align: top;">
-      select local audio file: <input id="selected_audio_file" type="file" onchange="setSelectedAudioFile()"></input>
-      <div id="droped_audio_file" style="height:50px; width:100%; border: 1px solid black; background-color: #EEEEEE; paddig:5px; display: inline-block;">
-        &nbsp; or Drag&Drop Audio file here:<br/>
-        &nbsp;&nbsp; <span id="selected_audio_filename"></span>
+      <div id="audio_select_box" style="width:40%;  display: inline-block; vertical-align: top;">
+        select local audio file: <input id="selected_audio_file" type="file" onchange="setSelectedAudioFile()"></input>
+        <div id="droped_audio_file" style="height:50px; width:100%; border: 1px solid black; background-color: #EEEEEE; paddig:5px; display: inline-block;">
+          &nbsp; or Drag&Drop Audio file here:<br/>
+          &nbsp;&nbsp; <span id="selected_audio_filename"></span>
+        </div>
+        <audio id="local_audio" autoplay controls="1" style="width: 280px; border: 1px solid black; margin-top:5px;"></audio>&nbsp;&nbsp;
       </div>
-      <audio id="local_audio" autoplay controls="1" style="width: 280px; border: 1px solid black; margin-top:5px;"></audio>&nbsp;&nbsp;
     </div>
 
     <br />
@@ -32,13 +35,22 @@
     <br />
     <video id="monitor_video" autoplay controls="1" style="width: 240px; height: 180px; border: 1px solid black;"></video>
     <br />
-    Working canvas size:
+    Working Canvas size
     <select id="canvas_select" onchange="setSelectedCanvasSize()">
       <option value="Source Size">Source Size</option>
       <option value="640x480">640x480</option>      
       <option value="1280x720">1280x720</option>      
       <option value="1920x1080">1920x1080</option>      
       <option value="800x200">800x200</option>      
+    </select>
+    <!--
+    <input id="show_canvas_check" type="checkbox" checked="1" onchange="switchCanvas()">Show Canvas</input>
+    -->
+    &nbsp;
+    Working Canvas style<select id="canvas_display_select" onchange="setCanvasDisplay()">
+      <option value="visible">visibility:visible</option>
+      <option value="hidden">visibility:hidden</option>
+      <option value="none">display:none</option>
     </select>
     <br />
     <canvas id="duplicate_canvas" width="640px" height="480px" style="border: 1px solid black;"></canvas><br />
@@ -73,6 +85,8 @@
   // -- converted stream ---
   let monitorVideo = document.getElementById('monitor_video');
   let convertedStream = null;
+  let fileSelectBox = document.getElementById('file_select_box');
+  let fileSelectBoxCheck = document.getElementById('show_file_select_check');
 
 
   // -- video stream --
@@ -82,6 +96,8 @@
   let duplicateStream = duplicateCanvas.captureStream(30);
   let canvasSelect = document.getElementById('canvas_select');
   let selectedCanvasSize = "Source Size";
+  let showCanvasCheck = document.getElementById('show_canvas_check');
+  let canvasDisplaySelect = document.getElementById('canvas_display_select');
   
 
   // --- audio -----
@@ -440,5 +456,46 @@
     element.src = '';
   }
 
+  function switchCanvas() {
+    if (showCanvasCheck.checked) {
+      console.log('showCanvas checked');
+      duplicateCanvas.style.display = 'block';
+      //duplicateCanvas.style.visibility = 'visible';
+    }
+    else {
+      console.log('showCanvas NOT-checked');
+      duplicateCanvas.style.display = 'none'; // NG on Chrome: canvas update will stop
+      //duplicateCanvas.style.visibility = 'hidden'; // OK on Chrome and Fifefox
+    }
+  }
+
+  function setCanvasDisplay() {
+    canvasDisplay = canvasDisplaySelect.options[canvasDisplaySelect.selectedIndex].value;
+    console.log('canvas display=' + canvasDisplay);
+    if (canvasDisplay === 'visible') {
+      duplicateCanvas.style.display = 'block';
+      duplicateCanvas.style.visibility = 'visible';
+    }
+    else if (canvasDisplay === 'hidden') {
+      duplicateCanvas.style.display = 'block';
+      duplicateCanvas.style.visibility = 'hidden';
+    }
+    else if (canvasDisplay === 'none') {
+      duplicateCanvas.style.display = 'none';
+    }
+  }
+
+  function switchFileSelectBox() {
+    if (fileSelectBoxCheck.checked) {
+      console.log('showCanvas checked');
+      fileSelectBox.style.display = 'block';
+      //fileSelectBox.style.visibility = 'visible';
+    }
+    else {
+      console.log('showCanvas NOT-checked');
+      fileSelectBox.style.display = 'none'; // OK
+      //fileSelectBox.style.visibility = 'hidden'; // OK
+    }
+  }
 </script>
 </html>
