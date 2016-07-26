@@ -648,8 +648,9 @@
     //  console.log('Adding local stream...');
     //  peer.addStream(localStream);
     if (convertedStream) {
-      console.log('Adding lconvertedStream...');
+      console.log('Adding convertedStream...');
       peer.addStream(convertedStream);
+      //peer.addStream(duplicateStream);
     }
     else {
       console.warn('no local stream, but continue.');
