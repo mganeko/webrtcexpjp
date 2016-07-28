@@ -1,0 +1,198 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>Video to stream</title>
+</head>
+<body>
+  Local video file to stream<br />
+  select local video file: <input id="selected_file" type="file" onchange="setSelectedFile()"></input>
+  <div id="droped_file" style="height:50px; border: 1px solid black; background-color: #EEEEEE;">
+    &nbsp; or Drag&Drop file here
+  </div>
+  <!--
+  <button type="button" onclick="loadVideo();">load from URL</button>:
+  <input id="video_url" type="text" size="50"></input>
+  <br />
+  -->
+  <button type="button" onclick="startVideo();">Start</button>
+  <button type="button" onclick="stopVideo();">Stop</button>
+  <br />
+  <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>&nbsp;&nbsp;
+  <video id="monitor_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+  <br />
+  <canvas id="duplicate_canvas" width="640px" height="480px" style="border: 1px solid black;"></canvas><br />
+</body>
+<script type="text/javascript">
+  let selectedFile = document.getElementById('selected_file');
+  let dropDiv = document.getElementById('droped_file');
+  dropDiv.ondrop = onFileDrop;
+  dropDiv.ondragover = onFileDragOver;
+  dropDiv.ondragleave = onFileLeave;
+  //let videoURL = document.getElementById('video_url');
+  let duplicateCanvas = document.getElementById('duplicate_canvas');
+  //let ctxDuplicate = duplicateCanvas.getContext('2d');
+  let localVideo = document.getElementById('local_video');
+  let monitorVideo = document.getElementById('monitor_video');
+  let fileToPlay = null;
+  let animationId = null;
+  //let duplicateStream = duplicateCanvas.captureStream(30);
+  let duplicateStream = null;
+  
+
+  // ---------------------- video handling ----------------------- 
+  function setSelectedFile() {
+    if (selectedFile.files.length == 0) {
+      console.warn('file not selected');
+      return;
+    }
+
+    fileToPlay = selectedFile.files[0];
+    console.log('selected file=' + fileToPlay.name);
+    startVideo();
+  }
+
+  function onFileDrop(evt) {
+    //console.log('onFileDrop() evt:', evt);
+    console.log(evt.dataTransfer.files);
+    evt.stopPropagation();
+    evt.preventDefault();
+    dropDiv.style.backgroundColor = '#EEEEEE'; 
+
+    if (evt.dataTransfer.files.length > 0) {
+      fileToPlay = evt.dataTransfer.files[0];
+      console.log('dropped file=' + fileToPlay.name);
+      startVideo();
+    }    
+  }
+
+  function onFileDragOver(evt) {
+    //console.log('onFileDragOver() evt:', evt);
+    evt.stopPropagation();
+    evt.preventDefault();　// <-- must to avoid open file in browser
+
+    dropDiv.style.backgroundColor = '#F0E0E0'; 
+  }
+
+  function onFileLeave(evt) {
+    //evt.stopPropagation();
+    //evt.preventDefault();
+    dropDiv.style.backgroundColor = '#EEEEEE'; 
+  }
+
+  /*--
+  function loadVideo() {
+    pauseVideo(monitorVideo);
+    pauseVideo(localVideo);
+    
+    localVideo.src = videoURL.value;
+    localVideo.play();
+    localVideo.loop = true;
+    localVideo.onloadedmetadata = function() {
+      console.log('localVide metadeta width=' + localVideo.videoWidth + ' , height=' + localVideo.videoHeight);
+      duplicateCanvas.width = localVideo.videoWidth;
+      duplicateCanvas.height = localVideo.videoHeight;
+      if (ctxDuplicate) {
+        ctxDuplicate = null;
+      }
+      ctxDuplicate = duplicateCanvas.getContext('2d');
+      playVideo(monitorVideo, duplicateStream); // Only from same origin
+    }
+    animationId = window.requestAnimationFrame(drawCanvas);
+  }
+  --*/
+
+  // start local video
+  function startVideo() {
+    pauseVideo(monitorVideo);
+    pauseVideo(localVideo);
+
+    if (! fileToPlay) {
+      console.warn('file not selected');
+      return;
+    }
+
+    playVideo(localVideo, fileToPlay);
+    localVideo.loop = true;
+    localVideo.onloadedmetadata = function() {
+      console.log('localVide metadeta width=' + localVideo.videoWidth + ' , height=' + localVideo.videoHeight);
+      duplicateCanvas.width = localVideo.videoWidth;
+      duplicateCanvas.height = localVideo.videoHeight;
+      //if (ctxDuplicate) {
+      //  ctxDuplicate = null;
+      //}
+      //ctxDuplicate = duplicateCanvas.getContext('2d');
+
+      if (localVideo.captureStream) {
+        duplicateStream = localVideo.captureStream(30);
+      }
+      else if (localVideo.mozCaptureStream) {
+        duplicateStream = localVideo.mozCaptureStream(30);
+      }
+      
+      playVideo(monitorVideo, duplicateStream);
+    }
+    //animationId = window.requestAnimationFrame(drawCanvas);
+  }
+
+  // stop local video
+  function stopVideo() {
+    pauseVideo(localVideo);
+ 
+    if (animationId) {
+      window.cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+  }
+
+  function stopLocalStream(stream) {
+    if (!stream) {
+      return;
+    }
+    let tracks = stream.getTracks();
+    if (! tracks) {
+      console.warn('NO tracks');
+      return;
+    }
+    
+    for (let track of tracks) {
+      track.stop();
+    }
+  }
+
+  function drawCanvas() {
+    ctxDuplicate.drawImage(localVideo, 0, 0, localVideo.videoWidth, localVideo.videoHeight,
+      0, 0, duplicateCanvas.width , duplicateCanvas.height
+    );
+
+    // animation frame will be drop down, when window is hidden.
+    animationId = window.requestAnimationFrame(drawCanvas);
+  }
+
+  function playVideo(element, stream) {
+    //if ('srcObject' in element) {
+    //  element.srcObject = stream;
+    //}
+    //else {
+      element.src = window.URL.createObjectURL(stream);
+    //}
+    element.play();
+    element.volume = 0;
+  }
+
+  function pauseVideo(element) {
+    element.pause();
+    if ('srcObject' in element) {
+      element.srcObject = null;
+    }
+    else {
+      if (element.src && (element.src !== '') ) {
+        window.URL.revokeObjectURL(element.src);
+      }
+      element.src = '';
+    }
+  }
+
+
+</script>
+</html>

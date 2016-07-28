@@ -1,0 +1,218 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>Audio to stream</title>
+</head>
+<body>
+  Local audio file to stream<br />
+  select local audio file: <input id="selected_file" type="file" onchange="setSelectedFile()"></input>
+  <div id="droped_file" style="height:50px; border: 1px solid black; background-color: #EEEEEE;">
+    &nbsp; or Drag&Drop file here
+  </div>
+  <!--
+  <button type="button" onclick="loadVideo();">load from URL</button>:
+  <input id="video_url" type="text" size="50"></input>
+  <br />
+  -->
+  <button type="button" onclick="startAudio();">Start</button>
+  <button type="button" onclick="stopAudio();">Stop</button>
+  <br />
+  <audio id="local_audio" autoplay controls="1" style="width: 240px; border: 1px solid black;"></audio>&nbsp;&nbsp;
+  <audio id="monitor_audio" autoplay controls="1" style="width: 240px; border: 1px solid black;"></audio>
+  <br />
+</body>
+<script type="text/javascript">
+  let selectedFile = document.getElementById('selected_file');
+  let dropDiv = document.getElementById('droped_file');
+  dropDiv.ondrop = onFileDrop;
+  dropDiv.ondragover = onFileDragOver;
+  dropDiv.ondragleave = onFileLeave;
+  //let videoURL = document.getElementById('video_url');
+  let localAudio = document.getElementById('local_audio');
+  let monitorAudio = document.getElementById('monitor_audio');
+  let fileToPlay = null;
+  let duplicateStream = null;
+  
+
+  // --- audio -----
+  let audioContext = new AudioContext();
+  let audioSource = null;
+  let audioOutputNode = null;
+  let audioOutputSteram = null;
+
+  // ---------------------- audio handling ----------------------- 
+  function setSelectedFile() {
+    if (selectedFile.files.length == 0) {
+      console.warn('file not selected');
+      return;
+    }
+
+    fileToPlay = selectedFile.files[0];
+    console.log('selected file=' + fileToPlay.name);
+    startAudio();
+  }
+
+  function onFileDrop(evt) {
+    //console.log('onFileDrop() evt:', evt);
+    console.log(evt.dataTransfer.files);
+    evt.stopPropagation();
+    evt.preventDefault();
+    dropDiv.style.backgroundColor = '#EEEEEE'; 
+
+    if (evt.dataTransfer.files.length > 0) {
+      fileToPlay = evt.dataTransfer.files[0];
+      console.log('dropped file=' + fileToPlay.name);
+      startAudio();
+    }    
+  }
+
+  function onFileDragOver(evt) {
+    //console.log('onFileDragOver() evt:', evt);
+    evt.stopPropagation();
+    evt.preventDefault();　// <-- must to avoid open file in browser
+
+    dropDiv.style.backgroundColor = '#F0E0E0'; 
+  }
+
+  function onFileLeave(evt) {
+    //evt.stopPropagation();
+    //evt.preventDefault();
+    dropDiv.style.backgroundColor = '#EEEEEE'; 
+  }
+
+  /*--
+  function loadVideo() {
+    pauseVideo(monitorVideo);
+    pauseVideo(localVideo);
+    
+    localVideo.src = videoURL.value;
+    localVideo.play();
+    localVideo.loop = true;
+    localVideo.onloadedmetadata = function() {
+      console.log('localVide metadeta width=' + localVideo.videoWidth + ' , height=' + localVideo.videoHeight);
+      duplicateCanvas.width = localVideo.videoWidth;
+      duplicateCanvas.height = localVideo.videoHeight;
+      if (ctxDuplicate) {
+        ctxDuplicate = null;
+      }
+      ctxDuplicate = duplicateCanvas.getContext('2d');
+      playVideo(monitorVideo, duplicateStream); // Only from same origin
+    }
+    animationId = window.requestAnimationFrame(drawCanvas);
+  }
+  --*/
+
+  function loadLocalAudio(file) {    
+    let reader = new FileReader;
+    reader.readAsArrayBuffer(file);
+    reader.onload = function(evt) {
+      console.log('reader.onload(), evt:', evt);
+      audioContext.decodeAudioData(reader.result, function(buffer) {
+        playAudioContext(buffer);
+      });
+    }
+    reader.onloadend = function(evt) {
+      console.log('reader.onloadend(), evt:', evt);
+    }
+    reader.onloadstart = function(evt) {
+      console.log('reader.onloadstart(), evt:', evt);
+    }
+  }
+
+  function playAudioContext(buf) {
+    // source を作成
+    audioSource = audioContext.createBufferSource();
+    // buffer をセット
+    audioSource.buffer = buf;
+    // context に connect
+    //audioSource.connect(audioContext.destination);
+
+    // Set parameters
+    audioSource.loop　= true;
+    //source.loopStart = 0;
+    //source.loopEnd = audioBuffer.duration;
+    //source.playbackRate.value = 2.0;
+
+    // 再生
+    //audioSource.start(0);
+
+    // audioStream
+    audioOutputNode = audioContext.createMediaStreamDestination();
+
+	  audioOutputStream = audioOutputNode.stream;
+
+    audioSource.connect(audioOutputNode);
+    audioSource.start(0);
+
+    playAudio(monitorAudio, audioOutputStream);
+  }
+
+
+
+  function stopAudioContext() {
+    if (audioSource) {
+      audioSource.stop();
+      audioSource.disconnect(audioContext.destination);
+      audioSource = null;
+    }
+  }
+
+  // start local video
+  function startAudio() {
+    //localAudiopauseAudio(monitorAudio);
+    pauseAudio(localAudio);
+
+    if (! fileToPlay) {
+      console.warn('file not selected');
+      return;
+    }
+
+    playAudio(localAudio, fileToPlay);
+    localAudio.loop = true;
+    localAudio.onloadedmetadata = function() {
+      console.log('onloadedmetadata');
+    }
+
+    ////loadLocalAudio(fileToPlay);
+    //duplicateStream = localAudio.mozCaptureStream();
+    //playAudio(monitorAudio, duplicateStream)
+  }
+
+  // stop local video
+  function stopAudio() {
+    pauseAudio(localAudio);
+    stopAudioContext();
+  }
+
+  function stopLocalStream(stream) {
+    if (!stream) {
+      return;
+    }
+    let tracks = stream.getTracks();
+    if (! tracks) {
+      console.warn('NO tracks');
+      return;
+    }
+    
+    for (let track of tracks) {
+      track.stop();
+    }
+  }
+
+  function playAudio(element, stream) {
+    element.src = window.URL.createObjectURL(stream);
+    element.play();
+    element.volume = 0;
+  }
+
+  function pauseAudio(element) {
+    if (element.src && (element.src !== '') ) {
+      window.URL.revokeObjectURL(element.src);
+    }
+    element.src = '';
+  }
+
+
+</script>
+</html>
