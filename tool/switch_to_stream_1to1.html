@@ -1,0 +1,772 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>Files to stream</title>
+</head>
+<body>
+  <h4>Local Video/Audio files to stream</h4>
+  <div id="file_to_stream_box">
+    <input id="show_file_select_check" type="checkbox" checked="1" onchange="switchFileSelectBox()">Show File select UI</input><br />
+    <div id="file_select_box">
+      <div id="video_select_box" style="width:40%; display: inline-block;">
+        select local video file: <input id="selected_video_file" type="file" onchange="setSelectedVideoFile()"></input>
+        <div id="droped_video_file" style="height:50px; width:100%; border: 1px solid black; background-color: #EEEEEE; paddig:5px;　display: inline-block;">
+          &nbsp; or Drag&Drop Video file here:<br />
+          &nbsp;&nbsp; <span id="selected_video_filename"></span>
+        </div>
+        <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black; margin-top:5px;"></video>&nbsp;&nbsp;
+        <video id="local_video2" autoplay style="width: 160px; height: 120px; border: 1px solid black; margin-top:5px;"></video>&nbsp;&nbsp;
+        <div id="droped_video2_file" style="height:50px; width:100%; border: 1px solid black; background-color: #EEEEEE; paddig:5px;　display: inline-block;">
+          &nbsp; or Drag&Drop Video2 file here:<br />
+          &nbsp;&nbsp; <span id="selected_video2_filename"></span>
+        </div>
+      </div>
+
+      <div id="audio_select_box" style="width:40%;  display: inline-block; vertical-align: top;">
+        select local audio file: <input id="selected_audio_file" type="file" onchange="setSelectedAudioFile()"></input>
+        <div id="droped_audio_file" style="height:50px; width:100%; border: 1px solid black; background-color: #EEEEEE; paddig:5px; display: inline-block;">
+          &nbsp; or Drag&Drop Audio file here:<br/>
+          &nbsp;&nbsp; <span id="selected_audio_filename"></span>
+        </div>
+        <audio id="local_audio" autoplay controls="1" style="width: 280px; border: 1px solid black; margin-top:5px;"></audio>&nbsp;&nbsp;
+      </div>
+    </div>
+
+    <br />
+    Convert file to stream: 
+    <button type="button" onclick="startConvert();">Start</button>
+    <button type="button" onclick="stopConvert();">Stop</button>
+    &nbsp;
+    <button type="button" onclick="connect();">Connect</button>
+    <button type="button" onclick="hangUp();">Hang Up</button>     
+    <br />
+    <video id="monitor_video" autoplay controls="1" style="width: 240px; height: 180px; border: 1px solid black;"></video>
+    <br />
+    Working Canvas size
+    <select id="canvas_select" onchange="setSelectedCanvasSize()">
+      <option value="Source Size">Source Size</option>
+      <option value="640x480">640x480</option>      
+      <option value="1280x720">1280x720</option>      
+      <option value="1920x1080">1920x1080</option>      
+      <option value="800x200">800x200</option>      
+    </select>
+    <!--
+    <input id="show_canvas_check" type="checkbox" checked="1" onchange="switchCanvas()">Show Canvas</input>
+    -->
+    &nbsp;
+    Working Canvas style<select id="canvas_display_select" onchange="setCanvasDisplay()">
+      <option value="visible">visibility:visible</option>
+      <option value="hidden">visibility:hidden</option>
+      <option value="none">display:none</option>
+    </select>
+    <br />
+    <canvas id="duplicate_canvas" width="640px" height="480px" style="border: 1px solid black;"></canvas><br />
+  </div>
+</body>
+<script type="text/javascript">
+  // --- prefix -----
+  MediaStream = window.MediaStream || window.webkitMediaStream || window.mozMediaStream;
+  RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+  RTCSessionDescription = window.RTCSessionDescription || window.webkitRTCSessionDescription || window.mozRTCSessionDescription;
+
+
+  // -- for local video file --
+  let selectedVideoFile = document.getElementById('selected_video_file');
+  let dropVideoDiv = document.getElementById('droped_video_file');
+  let selectedVideoFilenameSpan = document.getElementById('selected_video_filename');
+  dropVideoDiv.ondrop = onVideoFileDrop;
+  dropVideoDiv.ondragover = onVideoFileDragOver;
+  dropVideoDiv.ondragleave = onVideoFileLeave;
+  let localVideo = document.getElementById('local_video');
+  let videoFileToPlay = null;
+
+  // -- for local audio file ---
+  let selectedAudioFile = document.getElementById('selected_audio_file');
+  let dropAudioDiv = document.getElementById('droped_audio_file');
+  let selectedAudioFilenameSpan = document.getElementById('selected_audio_filename');
+  dropAudioDiv.ondrop = onAudioFileDrop;
+  dropAudioDiv.ondragover = onAudioFileDragOver;
+  dropAudioDiv.ondragleave = onAudioFileLeave;
+  let localAudio = document.getElementById('local_audio');
+  let audioFileToPlay = null;
+
+  //let monitorAudio = document.getElementById('monitor_audio');
+
+  // -- converted stream ---
+  let monitorVideo = document.getElementById('monitor_video');
+  let convertedStream = null;
+  let fileSelectBox = document.getElementById('file_select_box');
+  let fileSelectBoxCheck = document.getElementById('show_file_select_check');
+
+
+  // -- video stream --
+  let duplicateCanvas = document.getElementById('duplicate_canvas');
+  let ctxDuplicate = duplicateCanvas.getContext('2d');
+  let animationId = null;
+  let duplicateStream = duplicateCanvas.captureStream(30);
+  let canvasSelect = document.getElementById('canvas_select');
+  let selectedCanvasSize = "Source Size";
+  let showCanvasCheck = document.getElementById('show_canvas_check');
+  let canvasDisplaySelect = document.getElementById('canvas_display_select');
+  
+
+  // --- audio -----
+  let audioContext = new AudioContext();
+  let audioSourceBuffer = null;
+  let audioSource = null;
+  let audioOutputNode = null;
+  let audioOutputSteram = null;
+
+
+
+  // ---------------------- video handling ----------------------- 
+  function setSelectedVideoFile() {
+    if (selectedVideoFile.files.length == 0) {
+      console.warn('file not selected');
+      return;
+    }
+    stopVideo();
+
+    videoFileToPlay = selectedVideoFile.files[0];
+    console.log('selected file=' + videoFileToPlay.name);
+    selectedVideoFilenameSpan.innerHTML = videoFileToPlay.name;
+    startVideo();
+  }
+
+  function onVideoFileDrop(evt) {
+    //console.log('onFileDrop() evt:', evt);
+    console.log(evt.dataTransfer.files);
+    evt.stopPropagation();
+    evt.preventDefault();
+    dropVideoDiv.style.backgroundColor = '#EEEEEE'; 
+
+    if (evt.dataTransfer.files.length > 0) {
+      stopVideo();
+      videoFileToPlay = evt.dataTransfer.files[0];
+      console.log('dropped file=' + videoFileToPlay.name);
+      selectedVideoFilenameSpan.innerHTML = videoFileToPlay.name;
+      startVideo();
+    }    
+  }
+
+  function onVideoFileDragOver(evt) {
+    //console.log('onFileDragOver() evt:', evt);
+    evt.stopPropagation();
+    evt.preventDefault();　// <-- must to avoid open file in browser
+
+    dropVideoDiv.style.backgroundColor = '#F0E0E0'; 
+  }
+
+  function onVideoFileLeave(evt) {
+    //evt.stopPropagation();
+    //evt.preventDefault();
+    dropVideoDiv.style.backgroundColor = '#EEEEEE'; 
+  }
+
+  // start local video
+  function startVideo() {
+    //pauseVideo(monitorVideo);
+    pauseVideo(localVideo);
+
+    if (! videoFileToPlay) {
+      console.warn('file not selected');
+      return;
+    }
+
+    playVideo(localVideo, videoFileToPlay);
+    localVideo.loop = true;
+    localVideo.onloadedmetadata = function() {
+      console.log('localVide metadeta width=' + localVideo.videoWidth + ' , height=' + localVideo.videoHeight);
+      if (selectedCanvasSize === 'Source Size') {
+        duplicateCanvas.width = localVideo.videoWidth;
+        duplicateCanvas.height = localVideo.videoHeight;
+        //if (ctxDuplicate) {
+        //  ctxDuplicate = null;
+        //}
+        //ctxDuplicate = duplicateCanvas.getContext('2d');
+        ////playVideo(monitorVideo, duplicateStream);
+      }
+    }
+    //animationId = window.requestAnimationFrame(drawCanvas);
+  }
+
+  // stop local video
+  function stopVideo() {
+    pauseVideo(localVideo);
+ 
+    //if (animationId) {
+    //  window.cancelAnimationFrame(animationId);
+    //  animationId = null;
+    //}
+  }
+
+  function drawCanvas() {
+    ctxDuplicate.drawImage(localVideo, 0, 0, localVideo.videoWidth, localVideo.videoHeight,
+      0, 0, duplicateCanvas.width , duplicateCanvas.height
+    );
+
+    // animation frame will be drop down, when window is hidden.
+    animationId = window.requestAnimationFrame(drawCanvas);
+  }
+
+  function setSelectedCanvasSize() {
+    selectedCanvasSize = canvasSelect.options[canvasSelect.selectedIndex].value;
+    console.log('selected canvas size=' + selectedCanvasSize);
+    if (selectedCanvasSize === 'Source Size') {
+      if (localVideo.videoWidth && localVideo.videoHeight) {
+        // source size
+        duplicateCanvas.width = localVideo.videoWidth;
+        duplicateCanvas.height = localVideo.videoHeight
+      }
+    }
+    else if (selectedCanvasSize === '640x480') {
+      duplicateCanvas.width = 640;
+      duplicateCanvas.height = 480;
+    }
+    else if (selectedCanvasSize === '1280x720') {
+      duplicateCanvas.width = 1280;
+      duplicateCanvas.height = 720;
+    }
+    else if (selectedCanvasSize === "1920x1080") {
+      duplicateCanvas.width = 1920;
+      duplicateCanvas.height = 1080;
+    }
+    else if (selectedCanvasSize === "800x200") {
+      duplicateCanvas.width = 800;
+      duplicateCanvas.height = 200;
+    }
+    else {
+      duplicateCanvas.width = 640;
+      duplicateCanvas.height = 480;
+    }
+
+    console.log()
+  }
+
+  // ---------------------- audio handling ----------------------- 
+  function setSelectedAudioFile() {
+    if (selectedAudioFile.files.length == 0) {
+      console.warn('file not selected');
+      return;
+    }
+
+    audioFileToPlay = selectedAudioFile.files[0];
+    console.log('selected file=' + audioFileToPlay.name);
+    selectedAudioFilenameSpan.innerHTML = audioFileToPlay.name;
+    startAudio();
+  }
+
+  function onAudioFileDrop(evt) {
+    //console.log('onFileDrop() evt:', evt);
+    console.log(evt.dataTransfer.files);
+    evt.stopPropagation();
+    evt.preventDefault();
+    dropAudioDiv.style.backgroundColor = '#EEEEEE'; 
+
+    if (evt.dataTransfer.files.length > 0) {
+      audioFileToPlay = evt.dataTransfer.files[0];
+      console.log('dropped file=' + audioFileToPlay.name);
+      selectedAudioFilenameSpan.innerHTML = audioFileToPlay.name;
+      startAudio();
+    }    
+  }
+
+  function onAudioFileDragOver(evt) {
+    //console.log('onFileDragOver() evt:', evt);
+    evt.stopPropagation();
+    evt.preventDefault();　// <-- must to avoid open file in browser
+
+    dropAudioDiv.style.backgroundColor = '#F0E0E0'; 
+  }
+
+  function onAudioFileLeave(evt) {
+    //evt.stopPropagation();
+    //evt.preventDefault();
+    dropAudioDiv.style.backgroundColor = '#EEEEEE'; 
+  }
+
+  // start local video
+  function startAudio() {
+    pauseAudio(localAudio);
+
+    if (! audioFileToPlay) {
+      console.warn('file not selected');
+      return;
+    }
+
+    playAudio(localAudio, audioFileToPlay);
+    localAudio.loop = true;
+    localAudio.onloadedmetadata = function() {
+      console.log('onloadedmetadata');
+    }
+
+    loadLocalAudio(audioFileToPlay);
+  }
+
+  // stop local video
+  function stopAudio() {
+    pauseAudio(localAudio);
+    stopAudioContext();
+  }
+  
+  function loadLocalAudio(file) {    
+    let reader = new FileReader;
+    reader.readAsArrayBuffer(file);
+    reader.onload = function(evt) {
+      console.log('reader.onload(), evt:', evt);
+      audioContext.decodeAudioData(reader.result, function(buffer) {
+        //playAudioContext(buffer);
+        audioSourceBuffer = buffer;
+      });
+    }
+    reader.onloadend = function(evt) {
+      console.log('reader.onloadend(), evt:', evt);
+    }
+    reader.onloadstart = function(evt) {
+      console.log('reader.onloadstart(), evt:', evt);
+    }
+  }
+
+  function startAudioStream() {
+    // source を作成
+    audioSource = audioContext.createBufferSource();
+    // buffer をセット
+    audioSource.buffer = audioSourceBuffer;
+    // context に connect
+    //audioSource.connect(audioContext.destination);
+
+    // Set parameters
+    audioSource.loop　= true;
+    //source.loopStart = 0;
+    //source.loopEnd = audioBuffer.duration;
+    //source.playbackRate.value = 2.0;
+
+
+    //audioSource.start(0);
+
+    // audioStream
+    audioOutputNode = audioContext.createMediaStreamDestination();
+	  audioOutputStream = audioOutputNode.stream;
+    audioSource.connect(audioOutputNode);
+
+    // 開始
+    audioSource.start(0);
+  }
+
+  function stopAudioStream() {
+    if (audioSource) {
+      audioSource.stop();
+      if (audioOutputStream) {
+        stopLocalStream(audioOutputStream);
+        audioOutputStream = null;
+      }
+      audioOutputNode = null;
+      audioSource = null;
+    }
+  }
+
+  // ---------- convert to stream ----
+  function startConvert() {
+    pauseVideo(monitorVideo);
+
+    // mix video / audio
+    convertedStream = new MediaStream();
+
+    if (videoFileToPlay) {
+      // -- convert video with canvas ---
+      if (ctxDuplicate) {
+        ctxDuplicate = null;
+      }
+      ctxDuplicate = duplicateCanvas.getContext('2d');
+      animationId = window.requestAnimationFrame(drawCanvas);
+
+      convertedStream.addTrack(duplicateStream.getVideoTracks()[0]);
+    }
+
+    if (audioFileToPlay) {
+      startAudioStream();
+      convertedStream.addTrack(audioOutputStream.getAudioTracks()[0]);
+    }
+
+    playVideo(monitorVideo, convertedStream);
+    monitorVideo.volume = 1.0;
+  }
+
+  function stopConvert() {
+    pauseVideo(monitorVideo);
+
+    // stop stream
+    if (convertedStream) {
+      //stopLocalStream(convertedStream);
+      convertedStream = null;
+    }
+
+    // stop video convert
+    if (animationId) {
+      window.cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+
+    // stop audio convert
+    stopAudioStream();
+  }
+
+  // --------------------------------------
+  function stopLocalStream(stream) {
+    if (!stream) {
+      return;
+    }
+    let tracks = stream.getTracks();
+    if (! tracks) {
+      console.warn('NO tracks');
+      return;
+    }
+    
+    for (let track of tracks) {
+      track.stop();
+    }
+  }
+
+
+
+  function playVideo(element, stream) {
+    //if ('srcObject' in element) {
+    //  element.srcObject = stream;
+    //}
+    //else {
+      element.src = window.URL.createObjectURL(stream);
+    //}
+    element.play();
+    element.volume = 0;
+  }
+
+  function pauseVideo(element) {
+    element.pause();
+    if ('srcObject' in element) {
+      element.srcObject = null;
+    }
+    else {
+      if (element.src && (element.src !== '') ) {
+        window.URL.revokeObjectURL(element.src);
+      }
+      element.src = '';
+    }
+  }
+
+  function playAudio(element, stream) {
+    element.src = window.URL.createObjectURL(stream);
+    element.play();
+    element.volume = 0;
+  }
+
+  function pauseAudio(element) {
+    if (element.src && (element.src !== '') ) {
+      window.URL.revokeObjectURL(element.src);
+    }
+    element.src = '';
+  }
+
+  function switchCanvas() {
+    if (showCanvasCheck.checked) {
+      console.log('showCanvas checked');
+      duplicateCanvas.style.display = 'block';
+      //duplicateCanvas.style.visibility = 'visible';
+    }
+    else {
+      console.log('showCanvas NOT-checked');
+      duplicateCanvas.style.display = 'none'; // NG on Chrome: canvas update will stop
+      //duplicateCanvas.style.visibility = 'hidden'; // OK on Chrome and Fifefox
+    }
+  }
+
+  function setCanvasDisplay() {
+    canvasDisplay = canvasDisplaySelect.options[canvasDisplaySelect.selectedIndex].value;
+    console.log('canvas display=' + canvasDisplay);
+    if (canvasDisplay === 'visible') {
+      duplicateCanvas.style.display = 'block';
+      duplicateCanvas.style.visibility = 'visible';
+    }
+    else if (canvasDisplay === 'hidden') {
+      duplicateCanvas.style.display = 'block';
+      duplicateCanvas.style.visibility = 'hidden';
+    }
+    else if (canvasDisplay === 'none') {
+      duplicateCanvas.style.display = 'none';
+    }
+  }
+
+  function switchFileSelectBox() {
+    if (fileSelectBoxCheck.checked) {
+      console.log('showCanvas checked');
+      fileSelectBox.style.display = 'block';
+      //fileSelectBox.style.visibility = 'visible';
+    }
+    else {
+      console.log('showCanvas NOT-checked');
+      fileSelectBox.style.display = 'none'; // OK
+      //fileSelectBox.style.visibility = 'hidden'; // OK
+    }
+  }
+
+  // -------- websocket ----
+  // please use node.js app
+  //  
+  // or you can use chrome app (only work with Chrome)
+  //  https://chrome.google.com/webstore/detail/simple-message-server/bihajhgkmpfnmbmdnobjcdhagncbkmmp
+  //
+  let wsUrl = 'ws://localhost:3001/';
+  let ws = new WebSocket(wsUrl);
+  ws.onopen = function(evt) {
+    console.log('ws open()');
+  };
+  ws.onerror = function(err) {
+    console.error('ws onerror() ERR:', err);
+  };
+  ws.onmessage = function(evt) {
+    console.log('ws onmessage() data:', evt.data);
+    let message = JSON.parse(evt.data);
+    if (message.type === 'offer') {
+      // -- got offer ---
+      console.log('Received offer ...');
+      //textToReceiveSdp.value = message.sdp;
+      let offer = new RTCSessionDescription(message);
+      setOffer(offer);
+    }
+    else if (message.type === 'answer') {
+      // --- got answer ---
+      console.log('Received answer ...');
+      //textToReceiveSdp.value = message.sdp;
+      let answer = new RTCSessionDescription(message);
+      setAnswer(answer);
+    }
+    else if (message.type === 'candidate') {
+      // --- got ICE candidate ---
+      console.log('Received ICE candidate ...');
+      let candidate = new RTCIceCandidate(message.ice);
+      console.log(candidate);
+      addIceCandidate(candidate);
+    }
+  };
+
+  function sendSdp(sessionDescription) {
+    console.log('---sending sdp ---');
+
+    //textForSendSdp.value = sessionDescription.sdp;
+    /*---
+    textForSendSdp.focus();
+    textForSendSdp.select();
+    ----*/
+
+    let message = JSON.stringify(sessionDescription);
+    console.log('sending SDP=' + message);
+    ws.send(message);
+  }
+
+  function sendIceCandidate(candidate) {
+    console.log('---sending ICE candidate ---');
+    let obj = { type: 'candidate', ice: candidate };
+    let message = JSON.stringify(obj);
+    console.log('sending candidate=' + message);
+    ws.send(message);
+  }
+
+  // ---------------------- connection handling -----------------------
+  let peerConnection = null;
+  function prepareNewConnection() {
+    let pc_config = {"iceServers":[]};
+    let peer = new RTCPeerConnection(pc_config);
+
+    // --- on get remote stream ---
+    if ('ontrack' in peer) {
+      peer.ontrack = function(event) {
+        console.log('-- peer.ontrack()');
+        let stream = event.streams[0];
+        //playVideo(remoteVideo, stream);
+      };
+    }
+    else {
+      peer.onaddstream = function(event) {
+        console.log('-- peer.onaddstream()');
+        let stream = event.stream;
+        //playVideo(remoteVideo, stream);
+      };
+    }
+
+    // --- on get local ICE candidate
+    peer.onicecandidate = function (evt) {
+      if (evt.candidate) {
+        console.log(evt.candidate);
+
+        // Trickle ICE の場合は、ICE candidateを相手に送る
+        sendIceCandidate(evt.candidate);
+
+        // Vanilla ICE の場合には、何もしない
+      } else {
+        console.log('empty ice event');
+
+        // Trickle ICE の場合は、何もしない
+        
+        // Vanilla ICE の場合には、ICE candidateを含んだSDPを相手に送る
+        //sendSdp(peer.localDescription);
+      }
+    };
+
+    // --- when need to exchange SDP ---
+    peer.onnegotiationneeded = function(evt) {
+      console.log('-- onnegotiationneeded() ---');
+    };
+
+    // --- other events ----
+    peer.onicecandidateerror = function (evt) {
+      console.error('ICE candidate ERROR:', evt);
+    };
+
+    peer.onsignalingstatechange = function() {
+      console.log('== signaling status=' + peer.signalingState);
+    };
+
+    peer.oniceconnectionstatechange = function() {
+      console.log('== ice connection status=' + peer.iceConnectionState);
+      if (peer.iceConnectionState === 'disconnected') {
+        console.log('-- disconnected --');
+        hangUp();
+      }
+    };
+
+    peer.onicegatheringstatechange = function() {
+      console.log('==***== ice gathering state=' + peer.iceGatheringState);
+    };
+    
+    peer.onconnectionstatechange = function() {
+      console.log('==***== connection state=' + peer.connectionState);
+    };
+
+    peer.onremovestream = function(event) {
+      console.log('-- peer.onremovestream()');
+      pauseVideo(remoteVideo);
+    };
+    
+    
+    // -- add local stream --
+    //if (localStream) {
+    //  console.log('Adding local stream...');
+    //  peer.addStream(localStream);
+    if (convertedStream) {
+      console.log('Adding convertedStream...');
+      peer.addStream(convertedStream);
+      //peer.addStream(duplicateStream);
+    }
+    else {
+      console.warn('no local stream, but continue.');
+    }
+
+    return peer;
+  }
+
+  function makeOffer() {
+    peerConnection = prepareNewConnection();
+    peerConnection.createOffer()
+    .then(function (sessionDescription) {
+      console.log('createOffer() succsess in promise');
+      return peerConnection.setLocalDescription(sessionDescription);
+    }).then(function() {
+      console.log('setLocalDescription() succsess in promise');
+
+      // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+      sendSdp(peerConnection.localDescription);
+
+      // -- Vanilla ICE の場合には、まだSDPは送らない --
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+
+  function setOffer(sessionDescription) {
+    if (peerConnection) {
+      console.error('peerConnection alreay exist!');
+    }
+    peerConnection = prepareNewConnection();
+    peerConnection.setRemoteDescription(sessionDescription)
+    .then(function() {
+      console.log('setRemoteDescription(offer) succsess in promise');
+      makeAnswer();
+    }).catch(function(err) {
+      console.error('setRemoteDescription(offer) ERROR: ', err);
+    });
+  }
+  
+  function makeAnswer() {
+    console.log('sending Answer. Creating remote session description...' );
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+    
+    peerConnection.createAnswer()
+    .then(function (sessionDescription) {
+      console.log('createAnswer() succsess in promise');
+      return peerConnection.setLocalDescription(sessionDescription);
+    }).then(function() {
+      console.log('setLocalDescription() succsess in promise');
+
+      // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+      sendSdp(peerConnection.localDescription);
+
+      // -- Vanilla ICE の場合には、まだSDPは送らない --
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+
+  function setAnswer(sessionDescription) {
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+
+    peerConnection.setRemoteDescription(sessionDescription)
+    .then(function() {
+      console.log('setRemoteDescription(answer) succsess in promise');
+    }).catch(function(err) {
+      console.error('setRemoteDescription(answer) ERROR: ', err);
+    });
+  }
+
+  // --- tricke ICE ---
+  function addIceCandidate(candidate) {
+    if (peerConnection) {
+      peerConnection.addIceCandidate(candidate);
+    }
+    else {
+      console.error('PeerConnection not exist!');
+      return;
+    }
+  }
+  
+  // start PeerConnection
+  function connect() {
+    if (! peerConnection) {
+      console.log('make Offer');
+      makeOffer();
+    }
+    else {
+      console.warn('peer already exist.');
+    }
+  }
+
+  // close PeerConnection
+  function hangUp() {
+    if (peerConnection) {
+      console.log('Hang up.');
+      peerConnection.close();
+      peerConnection = null;
+      //pauseVideo(remoteVideo);
+    }
+    else {
+      console.warn('peer NOT exist.');
+    }
+  }
+
+</script>
+</html>
