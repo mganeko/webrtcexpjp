@@ -21,6 +21,7 @@
           &nbsp; or Drag&Drop Video2 file here:<br />
           &nbsp;&nbsp; <span id="selected_video2_filename"></span>
         </div>
+        <input id="range_fader" type="range" min="0" max="100" style="width: 400px;" value="0" step="2" oninput="rangeChange();" /><span id="fader_value" >0</span><br />
       </div>
 
       <div id="audio_select_box" style="width:40%;  display: inline-block; vertical-align: top;">
@@ -81,6 +82,15 @@
   let localVideo = document.getElementById('local_video');
   let videoFileToPlay = null;
 
+  let dropVideoDiv2 = document.getElementById('droped_video2_file');
+  let selectedVideoFilenameSpan2 = document.getElementById('selected_video2_filename');
+  dropVideoDiv2.ondrop = onVideoFile2Drop;
+  dropVideoDiv2.ondragover = onVideoFile2DragOver;
+  dropVideoDiv2.ondragleave = onVideoFile2Leave;
+  let localVideo2 = document.getElementById('local_video2');
+  let videoFile2ToPlay = null;
+
+
   // -- for local audio file ---
   let selectedAudioFile = document.getElementById('selected_audio_file');
   let dropAudioDiv = document.getElementById('droped_audio_file');
@@ -119,6 +129,14 @@
   let audioOutputSteram = null;
 
 
+  // --- fader ---
+  var rangeFader = document.getElementById('range_fader');
+  var spanFader = document.getElementById('fader_value');
+  var faderValue = 0;
+  function rangeChange() {
+    faderValue = rangeFader.value;
+    spanFader.innerHTML = faderValue;
+  }
 
   // ---------------------- video handling ----------------------- 
   function setSelectedVideoFile() {
@@ -164,6 +182,36 @@
     dropVideoDiv.style.backgroundColor = '#EEEEEE'; 
   }
 
+  function onVideoFile2Drop(evt) {
+    //console.log('onFileDrop() evt:', evt);
+    console.log(evt.dataTransfer.files);
+    evt.stopPropagation();
+    evt.preventDefault();
+    dropVideoDiv2.style.backgroundColor = '#EEEEEE'; 
+
+    if (evt.dataTransfer.files.length > 0) {
+      stopVideo2();
+      videoFile2ToPlay = evt.dataTransfer.files[0];
+      console.log('dropped file=' + videoFile2ToPlay.name);
+      selectedVideoFilenameSpan2.innerHTML = videoFile2ToPlay.name;
+      startVideo2();
+    }    
+  }
+
+  function onVideoFile2DragOver(evt) {
+    //console.log('onFileDragOver() evt:', evt);
+    evt.stopPropagation();
+    evt.preventDefault();　// <-- must to avoid open file in browser
+
+    dropVideoDiv2.style.backgroundColor = '#F0E0E0'; 
+  }
+
+  function onVideoFile2Leave(evt) {
+    //evt.stopPropagation();
+    //evt.preventDefault();
+    dropVideoDiv2.style.backgroundColor = '#EEEEEE'; 
+  }
+
   // start local video
   function startVideo() {
     //pauseVideo(monitorVideo);
@@ -194,6 +242,43 @@
   // stop local video
   function stopVideo() {
     pauseVideo(localVideo);
+ 
+    //if (animationId) {
+    //  window.cancelAnimationFrame(animationId);
+    //  animationId = null;
+    //}
+  }
+
+  // start local video
+  function startVideo2() {
+    //pauseVideo(monitorVideo);
+    pauseVideo(localVideo2);
+
+    if (! videoFile2ToPlay) {
+      console.warn('file not selected');
+      return;
+    }
+
+    playVideo(localVideo2, videoFile2ToPlay);
+    localVideo2.loop = true;
+    localVideo2.onloadedmetadata = function() {
+      console.log('localVide metadeta width=' + localVideo2.videoWidth + ' , height=' + localVideo2.videoHeight);
+      if (selectedCanvasSize === 'Source Size') {
+        //duplicateCanvas.width = localVideo.videoWidth;
+        //duplicateCanvas.height = localVideo.videoHeight;
+        ////if (ctxDuplicate) {
+        ////  ctxDuplicate = null;
+        ////}
+        ////ctxDuplicate = duplicateCanvas.getContext('2d');
+        //////playVideo(monitorVideo, duplicateStream);
+      }
+    }
+    //animationId = window.requestAnimationFrame(drawCanvas);
+  }
+
+  // stop local video
+  function stopVideo2() {
+    pauseVideo(localVideo2);
  
     //if (animationId) {
     //  window.cancelAnimationFrame(animationId);
