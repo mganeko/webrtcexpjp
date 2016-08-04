@@ -21,12 +21,13 @@
           &nbsp; or Drag&Drop Video2 file here:<br />
           &nbsp;&nbsp; <span id="selected_video2_filename"></span>
         </div>
+        select local video2 file: <input id="selected_video2_file" type="file" onchange="setSelectedVideoFile2()"></input><br />
         <select id="fader_select" onchange="setSelectedFaderType()">
           <option value="swipe">swipe</option>
           <option value="stripe">stripe</option>      
           <option value="dissolve">dissolve</option>      
         </select>
-        <input id="range_fader" type="range" min="0" max="100" style="width: 400px;" value="0" step="2" oninput="rangeChange();" /><span id="fader_value" >0</span><br />
+        <input id="range_fader" type="range" min="0" max="100" style="width: 300px;" value="0" step="2" oninput="rangeChange();" /><span id="fader_value" >0</span><br />
       </div>
 
       <div id="audio_select_box" style="width:40%;  display: inline-block; vertical-align: top;">
@@ -87,6 +88,7 @@
   let localVideo = document.getElementById('local_video');
   let videoFileToPlay = null;
 
+  let selectedVideoFile2 = document.getElementById('selected_video2_file');
   let dropVideoDiv2 = document.getElementById('droped_video2_file');
   let selectedVideoFilenameSpan2 = document.getElementById('selected_video2_filename');
   dropVideoDiv2.ondrop = onVideoFile2Drop;
@@ -192,6 +194,19 @@
     //evt.stopPropagation();
     //evt.preventDefault();
     dropVideoDiv.style.backgroundColor = '#EEEEEE'; 
+  }
+
+  function setSelectedVideoFile2() {
+    if (selectedVideoFile2.files.length == 0) {
+      console.warn('file not selected');
+      return;
+    }
+    stopVideo2();
+
+    videoFile2ToPlay = selectedVideoFile2.files[0];
+    console.log('selected file=' + videoFile2ToPlay.name);
+    selectedVideoFilenameSpan2.innerHTML = videoFile2ToPlay.name;
+    startVideo2();
   }
 
   function onVideoFile2Drop(evt) {
