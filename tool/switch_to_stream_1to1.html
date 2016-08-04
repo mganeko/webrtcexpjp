@@ -2,10 +2,10 @@
 <html>
 <head>
  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
- <title>Files to stream</title>
+ <title>Switch Files to stream</title>
 </head>
 <body>
-  <h4>Local Video/Audio files to stream</h4>
+  <h4>Local Video/Audio file Switcher to stream</h4>
   <div id="file_to_stream_box">
     <input id="show_file_select_check" type="checkbox" checked="1" onchange="switchFileSelectBox()">Show File select UI</input><br />
     <div id="file_select_box">
@@ -21,6 +21,11 @@
           &nbsp; or Drag&Drop Video2 file here:<br />
           &nbsp;&nbsp; <span id="selected_video2_filename"></span>
         </div>
+        <select id="fader_select" onchange="setSelectedFaderType()">
+          <option value="swipe">swipe</option>
+          <option value="stripe">stripe</option>      
+          <option value="dissolve">dissolve</option>      
+        </select>
         <input id="range_fader" type="range" min="0" max="100" style="width: 400px;" value="0" step="2" oninput="rangeChange();" /><span id="fader_value" >0</span><br />
       </div>
 
@@ -42,7 +47,7 @@
     <button type="button" onclick="connect();">Connect</button>
     <button type="button" onclick="hangUp();">Hang Up</button>     
     <br />
-    <video id="monitor_video" autoplay controls="1" style="width: 240px; height: 180px; border: 1px solid black;"></video>
+    <video id="monitor_video" autoplay controls="1" style="width: 320px; height: 240px; border: 1px solid black;"></video>
     <br />
     Working Canvas size
     <select id="canvas_select" onchange="setSelectedCanvasSize()">
@@ -130,12 +135,19 @@
 
 
   // --- fader ---
-  var rangeFader = document.getElementById('range_fader');
-  var spanFader = document.getElementById('fader_value');
-  var faderValue = 0;
+  let rangeFader = document.getElementById('range_fader');
+  let spanFader = document.getElementById('fader_value');
+  let faderValue = 0;
   function rangeChange() {
     faderValue = rangeFader.value;
     spanFader.innerHTML = faderValue;
+  }
+
+  let faderSelect = document.getElementById('fader_select');
+  let faderType = 'swipe';
+  function setSelectedFaderType() {
+    faderType = faderSelect.options[faderSelect.selectedIndex].value;
+    console.log('selected faderType=' + faderType);
   }
 
   // ---------------------- video handling ----------------------- 
@@ -287,9 +299,68 @@
   }
 
   function drawCanvas() {
+    /*-- single ---
     ctxDuplicate.drawImage(localVideo, 0, 0, localVideo.videoWidth, localVideo.videoHeight,
       0, 0, duplicateCanvas.width , duplicateCanvas.height
     );
+    --*/
+    
+    if (faderType === 'swipe') {
+      ctxDuplicate.globalAlpha = 1;
+      let video1Width = Math.round((100- faderValue)/100.0 * localVideo.videoWidth);
+      let video2Width = Math.round(faderValue/100.0 * localVideo2.videoWidth);
+      let canvasWidth1 = Math.round((100- faderValue)/100.0 * duplicateCanvas.width);
+      let canvasWidth2 = Math.round(faderValue/100.0 * duplicateCanvas.width);
+      ctxDuplicate.drawImage(localVideo, 0, 0, video1Width, localVideo.videoHeight,
+        0, 0, canvasWidth1 , duplicateCanvas.height
+      );
+
+      ctxDuplicate.drawImage(localVideo2, (localVideo2.videoWidth - video2Width), 0, video2Width, localVideo2.videoHeight,
+        (duplicateCanvas.width - canvasWidth2), 0, canvasWidth2 , duplicateCanvas.height
+      );
+    }
+    else if (faderType === 'dissolve') {
+      let video1Alpha = (100 - faderValue)/100.0;
+      let video2Alpha = (faderValue)/100.0;
+      
+      ctxDuplicate.globalAlpha = video1Alpha;
+      ctxDuplicate.drawImage(localVideo, 0, 0, localVideo.videoWidth, localVideo.videoHeight,
+        0, 0, duplicateCanvas.width , duplicateCanvas.height
+      );
+      
+      ctxDuplicate.globalAlpha = video2Alpha;
+      ctxDuplicate.drawImage(localVideo2, 0, 0, localVideo2.videoWidth, localVideo2.videoHeight,
+        0, 0, duplicateCanvas.width , duplicateCanvas.height
+      );
+    }
+    else if (faderType === 'stripe') {
+      ctxDuplicate.globalAlpha = 1;
+      let stripeCount = 10;
+      let video1StripeWidth = Math.round(localVideo.videoWidth / stripeCount);
+      let video2StripeWidth = Math.round(localVideo2.videoWidth / stripeCount);
+      let canvasStripeWidth = Math.round(duplicateCanvas.width / stripeCount);
+
+      let video1StripeWidthFader =  Math.round((100- faderValue)/100.0 * video1StripeWidth);
+      let video2StripeWidthFader = Math.round(faderValue/100.0 * video2StripeWidth);
+      let canvasStripeWidthFader1 = Math.round((100- faderValue)/100.0 * canvasStripeWidth);
+      let canvasStripeWidthFader2 = Math.round(faderValue/100.0 * canvasStripeWidth);
+      
+      
+      for (let index = 0; index < stripeCount; index++) {
+        let video1Offset = video1StripeWidth * index;
+        let video2Offset = video2StripeWidth * index;
+        let canvasOffset = canvasStripeWidth * index;
+        
+        ctxDuplicate.drawImage(localVideo, video1Offset, 0, video1StripeWidthFader, localVideo.videoHeight,
+          canvasOffset, 0, canvasStripeWidthFader1 , duplicateCanvas.height
+        );
+
+        ctxDuplicate.drawImage(localVideo2, video2Offset + (video2StripeWidth - video2StripeWidthFader), 0, video2StripeWidthFader, localVideo2.videoHeight,
+          canvasOffset + (canvasStripeWidth - canvasStripeWidthFader2), 0, canvasStripeWidthFader2, duplicateCanvas.height
+        );
+      }
+    }
+
 
     // animation frame will be drop down, when window is hidden.
     animationId = window.requestAnimationFrame(drawCanvas);
