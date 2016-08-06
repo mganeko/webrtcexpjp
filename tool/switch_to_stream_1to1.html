@@ -322,26 +322,25 @@
     //}
   }
 
-  function drawCanvas() {
-    /*-- single ---
-    ctxDuplicate.drawImage(localVideo, 0, 0, localVideo.videoWidth, localVideo.videoHeight,
-      0, 0, duplicateCanvas.width , duplicateCanvas.height
-    );
-    --*/
-    
+  function drawCanvas() {    
     if (faderType === 'swipe') {
       ctxDuplicate.globalAlpha = 1;
       let video1Width = Math.round((100- faderValue)/100.0 * localVideo.videoWidth);
       let video2Width = Math.round(faderValue/100.0 * localVideo2.videoWidth);
       let canvasWidth1 = Math.round((100- faderValue)/100.0 * duplicateCanvas.width);
       let canvasWidth2 = Math.round(faderValue/100.0 * duplicateCanvas.width);
-      ctxDuplicate.drawImage(localVideo, 0, 0, video1Width, localVideo.videoHeight,
-        0, 0, canvasWidth1 , duplicateCanvas.height
-      );
 
-      ctxDuplicate.drawImage(localVideo2, (localVideo2.videoWidth - video2Width), 0, video2Width, localVideo2.videoHeight,
-        (duplicateCanvas.width - canvasWidth2), 0, canvasWidth2 , duplicateCanvas.height
-      );
+      if (canvasWidth1 > 0) {
+        ctxDuplicate.drawImage(localVideo, 0, 0, video1Width, localVideo.videoHeight,
+          0, 0, canvasWidth1 , duplicateCanvas.height
+        );
+      }
+
+      if (canvasWidth2 > 0) {
+        ctxDuplicate.drawImage(localVideo2, (localVideo2.videoWidth - video2Width), 0, video2Width, localVideo2.videoHeight,
+          (duplicateCanvas.width - canvasWidth2), 0, canvasWidth2 , duplicateCanvas.height
+        );
+      }
     }
     else if (faderType === 'dissolve') {
       let video1Alpha = (100 - faderValue)/100.0;
@@ -375,13 +374,17 @@
         let video2Offset = video2StripeWidth * index;
         let canvasOffset = canvasStripeWidth * index;
         
-        ctxDuplicate.drawImage(localVideo, video1Offset, 0, video1StripeWidthFader, localVideo.videoHeight,
-          canvasOffset, 0, canvasStripeWidthFader1 , duplicateCanvas.height
-        );
+        if (canvasStripeWidthFader1 > 0) {
+          ctxDuplicate.drawImage(localVideo, video1Offset, 0, video1StripeWidthFader, localVideo.videoHeight,
+            canvasOffset, 0, canvasStripeWidthFader1 , duplicateCanvas.height
+          );
+        }
 
-        ctxDuplicate.drawImage(localVideo2, video2Offset + (video2StripeWidth - video2StripeWidthFader), 0, video2StripeWidthFader, localVideo2.videoHeight,
-          canvasOffset + (canvasStripeWidth - canvasStripeWidthFader2), 0, canvasStripeWidthFader2, duplicateCanvas.height
-        );
+        if (canvasStripeWidthFader2 > 0) {
+          ctxDuplicate.drawImage(localVideo2, video2Offset + (video2StripeWidth - video2StripeWidthFader), 0, video2StripeWidthFader, localVideo2.videoHeight,
+            canvasOffset + (canvasStripeWidth - canvasStripeWidthFader2), 0, canvasStripeWidthFader2, duplicateCanvas.height
+          );
+        }
       }
     }
 
