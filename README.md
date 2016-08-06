@@ -2,9 +2,19 @@
 
 WebRTC 関連の実験(HTML, JavaScript)を公開します。
 
-GitHub pages はこちら https://mganeko.github.io/webrtcexpjp/
+GitHub Pages は[こちら](https://mganeko.github.io/webrtcexpjp/)
 
-## HTML5Experts.jp WebRTC再入門2016 のサンプル
+## Qiita記事のサンプル
+
+### WebRTCを試すときにオッサンが映り続ける問題に対処する
+
+Qiitaの記事は[こちら](http://qiita.com/massie_g/items/5a6c4b69374d5997dc37)
+
+* ローカルの映像/音声ファイルをメディアストリームに変換 [file_to_stream.html](/tool/file_to_stream.html])
+
+## HTML5Experts.jp WebRTC入門2016 のサンプル
+[WebRTC入門2016はこちら](https://html5experts.jp/series/webrtc2016/)
+
 ### (1)カメラを使ってみよう 
 * 新しいAPIでカメラをつかってみる [basic2016/camera_new.html](/basic2016/camera_new.html)
 * 新旧APIをPromiseでラップしてみる [basic2016/camera_old_new.html](/basic2016/camera_old_new.html)
