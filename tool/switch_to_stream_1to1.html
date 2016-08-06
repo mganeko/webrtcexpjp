@@ -87,6 +87,9 @@
   dropVideoDiv.ondragleave = onVideoFileLeave;
   let localVideo = document.getElementById('local_video');
   let videoFileToPlay = null;
+  localVideo.ondrop = onVideoFileDrop;
+  localVideo.ondragover = onVideoFileDragOver;
+  localVideo.ondragleave = onVideoFileLeave;
 
   let selectedVideoFile2 = document.getElementById('selected_video2_file');
   let dropVideoDiv2 = document.getElementById('droped_video2_file');
@@ -96,6 +99,9 @@
   dropVideoDiv2.ondragleave = onVideoFile2Leave;
   let localVideo2 = document.getElementById('local_video2');
   let videoFile2ToPlay = null;
+  localVideo2.ondrop = onVideoFile2Drop;
+  localVideo2.ondragover = onVideoFile2DragOver;
+  localVideo2.ondragleave = onVideoFile2Leave;
 
 
   // -- for local audio file ---
@@ -107,6 +113,9 @@
   dropAudioDiv.ondragleave = onAudioFileLeave;
   let localAudio = document.getElementById('local_audio');
   let audioFileToPlay = null;
+  localAudio.ondrop = onAudioFileDrop;
+  localAudio.ondragover = onAudioFileDragOver;
+  localAudio.ondragleave = onAudioFileLeave;
 
   //let monitorAudio = document.getElementById('monitor_audio');
 
