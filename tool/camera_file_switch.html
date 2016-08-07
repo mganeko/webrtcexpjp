@@ -74,7 +74,8 @@
   MediaStream = window.MediaStream || window.webkitMediaStream || window.mozMediaStream;
   RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
   RTCSessionDescription = window.RTCSessionDescription || window.webkitRTCSessionDescription || window.mozRTCSessionDescription;
-
+  navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
+                            navigator.mozGetUserMedia || navigator.msGetUserMedia;
 
   // -- for local video file --
   let selectedVideoFile = document.getElementById('selected_video_file');
@@ -151,7 +152,39 @@
   }
 
   // ------ camera handling ----
-  
+  function startCamera() {
+    pauseVideo(localVideo2);
+    if (cameraStream) {
+      stopLocalStream(cameraStream);
+      cameraStream = null;
+    }
+
+    getDeviceStream({video: true, audio: true})
+    .then(function (stream) { // success
+      cameraStream = stream;
+      playVideo(localVideo2, stream);
+    }).catch(function (error) { // error
+      console.error('getUserMedia error:', error);
+      return;
+    });
+  }
+
+  function getDeviceStream(option) {
+    if ('getUserMedia' in navigator.mediaDevices) {
+      console.log('navigator.mediaDevices.getUserMadia');
+      return navigator.mediaDevices.getUserMedia(option);
+    }
+    else {
+      console.log('wrap navigator.getUserMadia with Promise');
+      return new Promise(function(resolve, reject){    
+        navigator.getUserMedia(option,
+          resolve,
+          reject
+        );
+      });      
+    }
+  }
+
 
   // ---------------------- video handling ----------------------- 
   function setSelectedVideoFile() {
@@ -165,6 +198,8 @@
     console.log('selected file=' + videoFileToPlay.name);
     selectedVideoFilenameSpan.innerHTML = videoFileToPlay.name;
     startVideo();
+
+    loadLocalAudio(videoFileToPlay); // load video file as sound file
   }
 
   function onVideoFileDrop(evt) {
@@ -180,6 +215,8 @@
       console.log('dropped file=' + videoFileToPlay.name);
       selectedVideoFilenameSpan.innerHTML = videoFileToPlay.name;
       startVideo();
+
+      loadLocalAudio(videoFileToPlay); // load video file as sound file
     }    
   }
 
@@ -197,6 +234,7 @@
     dropVideoDiv.style.backgroundColor = '#EEEEEE'; 
   }
 
+  /*---
   function setSelectedVideoFile2() {
     if (selectedVideoFile2.files.length == 0) {
       console.warn('file not selected');
@@ -239,6 +277,7 @@
     //evt.preventDefault();
     dropVideoDiv2.style.backgroundColor = '#EEEEEE'; 
   }
+  ---*/
 
   // start local video
   function startVideo() {
@@ -563,12 +602,18 @@
       animationId = window.requestAnimationFrame(drawCanvas);
 
       convertedStream.addTrack(duplicateStream.getVideoTracks()[0]);
+
+      // conver sound of video file
+      startAudioStream();
+      convertedStream.addTrack(audioOutputStream.getAudioTracks()[0]);
     }
 
+    /*
     if (audioFileToPlay) {
       startAudioStream();
       convertedStream.addTrack(audioOutputStream.getAudioTracks()[0]);
     }
+    */
 
     playVideo(monitorVideo, convertedStream);
     monitorVideo.volume = 1.0;
