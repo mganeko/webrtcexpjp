@@ -143,13 +143,14 @@
   ---*/
   
   // ----- use firebase.io ----
+  const dataDebugFlag = true;
   let room = getRoomName();
   // Initialize Firebase
   let config = {
     apiKey: "AIzaSyD4_CTIcIgX0X2t2o7oVJvXwWLRuHBfPSA",  // <-- please set your API key
     databaseURL: "https://webrtcexpjp.firebaseio.com",  // <-- please set your database URL
   };
-  let databaseRoot = 'basic2016/multi/rooms/'; // <--- plaase set your database root for signaling
+  let databaseRoot = 'basic2016/multi/'; // <--- plaase set your database root for signaling
   firebase.initializeApp(config);
   let database = firebase.database();
   let roomBroadcastRef;
@@ -159,14 +160,21 @@
   joinRoom(room);
   setRoomLink(room);
 
-  function joinRoom() {
+  function joinRoom(room) {
     console.log('join room name = ' + room);
 
-    var key = database.ref(databaseRoot + room + '/_join_').push({ joined : 'unknown'}).key
+    let key = database.ref(databaseRoot + room + '/_join_').push({ joined : 'unknown'}).key
     clientId = 'member_' + key;
     console.log('joined to room=' + room + ' as clientId=' + clientId);
     database.ref(databaseRoot + room + '/_join_/' + key).update({ joined : clientId});
-
+    
+    
+    // remove join object
+    if (! dataDebugFlag) {
+      let jooinRef =  database.ref(databaseRoot + room + '/_join_/' + key);
+      jooinRef.remove();
+    }
+      
     roomBroadcastRef = database.ref(databaseRoot + room + '/_broadcast_');
     roomBroadcastRef.on('child_added', function(data) {
       console.log('roomBroadcastRef.on(data) data.key=' + data.key + ', data.val():', data.val());
@@ -231,9 +239,11 @@
         addIceCandidate(fromId, candidate);
       }
       
-      // remove direct message
-      let messageRef =  database.ref(databaseRoot + room + '/_direct_/' + clientId + '/' + data.key);
-      messageRef.remove();
+      if (! dataDebugFlag) {
+        // remove direct message
+        let messageRef =  database.ref(databaseRoot + room + '/_direct_/' + clientId + '/' + data.key);
+        messageRef.remove();
+      }
     });
   }
   
