@@ -37,8 +37,8 @@ Qiitaの記事は[こちら](http://qiita.com/massie_g/items/5a6c4b69374d5997dc3
 * socket.ioを使って、多人数ビデオチャット [basic2016/multi.html](/basic2016/multi.html)
 * node.jsとsocket.ioを使った、多会議室、多人数対応のシグナリングサーバー [basic2016/server/signaling_room.js](/basic2016/server/signaling_room.js)
 
-### 多人数ビデチャット番外編
-* 番外編：Firebaseを使ってシグナリングを行う多人数ビデオチャット [basic2016/multi_firebase.html](/basic2016/multi_firebase.html)
+### (5) 番外編：Firebaseで楽々シグナリング
+* Firebaseを使ってシグナリングを行う多人数ビデオチャット [basic2016/multi_firebase.html](/basic2016/multi_firebase.html)
 
 
 ## WebRTC Meetup 10 のサンプル
