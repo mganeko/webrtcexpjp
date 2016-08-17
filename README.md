@@ -39,6 +39,7 @@ Qiitaの記事は[こちら](http://qiita.com/massie_g/items/5a6c4b69374d5997dc3
 
 ### (5) 番外編：Firebaseで楽々シグナリング
 * Firebaseを使ってシグナリングを行う多人数ビデオチャット [basic2016/multi_firebase.html](/basic2016/multi_firebase.html)
+* Firebaseを使ってシグナリング、adapter.jsでEdge同志の通信も可能 [basic2016/multi_firebase_adapter.html](/basic2016/multi_firebase_adapter.html)
 
 
 ## WebRTC Meetup 10 のサンプル
