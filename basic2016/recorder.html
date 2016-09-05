@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>MeidaRecorder</title>
+</head>
+<body>
+  Camera 53 mediaDevice.getUserMedia()<br />
+  <button onclick="startVideo()">Start Camera</button>
+  <button onclick="stopVideo()">Stop Camera</button>
+  <br />
+  <video id="local_video" autoplay style="width: 320px; height: 240px; border: 1px solid black;"></video>
+</body>
+<script type="text/javascript">
+  let localVideo = document.getElementById('local_video');
+  localVideo.onloadedmetadata = function(evt) {
+    console.log('width=' + localVideo.videoWidth + '  height=' + localVideo.videoHeight);
+  };
+  let localStream;
+  
+  // start local video
+  function startVideo() {
+    navigator.mediaDevices.getUserMedia({
+      video: true,
+      /* --
+      {
+        //width: { min: 1280, max: 1920 }, // OK, effective on Chrome 53
+        //height: { min: 720, max: 1080 } //  OK, effective on Chrome 53
+        //width: 1280, height: 720 // NG, no effect
+        
+      },
+      --*/
+      audio: false
+    })
+    .then(function (stream) { // success
+      localStream = stream;
+      //localVideo.src = window.URL.createObjectURL(localStream);
+      localVideo.srcObject = localStream; // OK on Chrome 53
+    }).catch(function (error) { // error
+      console.error('mediaDevice.getUserMedia() error:', error);
+      return;
+    });
+  }
+  
+  // stop local video
+  function stopVideo() {
+    for (track of localStream.getTracks()) {
+      track.stop();
+    }
+    localStream = null;
+    
+    localVideo.pause();
+    //window.URL.revokeObjectURL(localVideo.src);
+    //localVideo.src = '';
+    localVideo.srcObject = null;
+  }
+</script>
+</html>
+
