@@ -5,18 +5,30 @@
  <title>MeidaRecorder</title>
 </head>
 <body>
-  Camera 53 mediaDevice.getUserMedia()<br />
+  Firefox 48 / Camera 53 mediaDevice.getUserMedia()<br />
   <button onclick="startVideo()">Start Camera</button>
   <button onclick="stopVideo()">Stop Camera</button>
+  &nbsp;&nbsp;
+  <button onclick="startRecording()">Start Record</button>
+  <button onclick="stopRecording()">Stop Record</button>
+  <a href="#" id="downloadlink" class="download">Download</a>
   <br />
-  <video id="local_video" autoplay style="width: 320px; height: 240px; border: 1px solid black;"></video>
+  <video id="local_video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
+  <video id="playback_video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
 </body>
 <script type="text/javascript">
   let localVideo = document.getElementById('local_video');
   localVideo.onloadedmetadata = function(evt) {
     console.log('width=' + localVideo.videoWidth + '  height=' + localVideo.videoHeight);
   };
-  let localStream;
+  let localStream = null;
+
+  // ---- recording ---
+  let recorder =  null;
+  let blobUrl = null;
+  let chunks = [];
+  let playbackVideo =  document.getElementById('playback_video');
+  let anchor = document.getElementById('downloadlink');
   
   // start local video
   function startVideo() {
@@ -54,6 +66,67 @@
     //localVideo.src = '';
     localVideo.srcObject = null;
   }
+
+  function startRecording() {
+    if (! localStream) {
+      console.warn('stream not ready');
+      return;      
+    }
+    if (recorder) {
+      console.warn('already recording');
+      return;
+    }
+
+    let options = {
+      //audioBitsPerSecond : 64000,
+      //videoBitsPerSecond : 512000,
+      //// mimeType : 'video/mp4' NG
+      //mimeType : 'video/webm'
+    };
+    recorder = new MediaRecorder(localStream, options);
+    chunks = [];
+    recorder.ondataavailable = function(evt) {
+      console.log("data available: evt.data.type=" + evt.data.type + " size=" + evt.data.size);
+      chunks.push(evt.data);
+    };
+    recorder.onstop = function(evt) {
+      console.log('recorder.onstop()');
+    };
+
+    recorder.start(1000);
+  }
+
+  function stopRecording() {
+    if (recorder) {
+      recorder.stop();
+      console.log("stop recording. playback");
+      recorder = null;
+      playRecorded();
+    }
+  }
+
+  function playRecorded() {
+    if (! blobUrl) {
+      window.URL.revokeObjectURL(blobUrl);
+      blobUrl = null;
+    }
+
+    var videoBlob = new Blob(chunks, { type: "video/webm" });
+    blobUrl = window.URL.createObjectURL(videoBlob);
+    anchor.download = 'recorded.webm';
+    anchor.href = blobUrl;
+
+    if (blobUrl) {
+      playbackVideo.src = blobUrl;
+      playbackVideo.onended = function() {
+        playbackVideo.pause();
+        playbackVideo.src = "";
+      };
+
+      playbackVideo.play();
+    }
+  }
+
 </script>
 </html>
 
