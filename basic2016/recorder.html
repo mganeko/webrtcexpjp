@@ -118,9 +118,11 @@
 
     if (blobUrl) {
       playbackVideo.src = blobUrl;
+      // playbackVideo.srcObject = videoBlob; // NG
       playbackVideo.onended = function() {
         playbackVideo.pause();
         playbackVideo.src = "";
+        // playbackVideo.srcObject = null; // NG
       };
 
       playbackVideo.play();
