@@ -15,6 +15,9 @@
   <br />
   <video id="local_video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
   <video id="playback_video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
+  <br />
+  <button onclick="addWavePlayer()">Add Wave</button>
+  <div id="container"></div>
 </body>
 <script type="text/javascript">
   let localVideo = document.getElementById('local_video');
@@ -127,6 +130,27 @@
 
       playbackVideo.play();
     }
+  }
+
+  // -- wave and ghost ---
+  let container =  document.getElementById('container');
+
+  function addWavePlayer() {
+    if (! blobUrl) {
+      console.warn('not recorded yet');
+      return;
+    }
+
+    let newVideo = document.createElement('video');
+    newVideo.style.width = '160px';
+    newVideo.style.height = '120px';
+    newVideo.style.border = '1px solid';
+    //newVideo.controls = "1";
+    newVideo.volume = 0;
+    newVideo.src = blobUrl;
+    newVideo.loop = "1";
+    newVideo.play();
+    container.appendChild(newVideo);
   }
 
 </script>
