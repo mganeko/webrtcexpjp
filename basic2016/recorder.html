@@ -11,6 +11,9 @@
   &nbsp;&nbsp;
   <button onclick="startRecording()">Start Record</button>
   <button onclick="stopRecording()">Stop Record</button>
+  <!-- not workin well
+  <button onclick="contineuRecording()">Continue Record</button>
+  -->
   <a href="#" id="downloadlink" class="download">Download</a>
   <!--
   <button onclick="requestFile()">Request File</button>
@@ -97,7 +100,9 @@
       chunks.push(evt.data);
     };
     recorder.onstop = function(evt) {
-      console.log('recorder.onstop()');
+      console.log('recorder.onstop(), then playback');
+      //recorder = null;
+      playRecorded();
     };
 
     recorder.start(1000);
@@ -106,11 +111,27 @@
   function stopRecording() {
     if (recorder) {
       recorder.stop();
-      console.log("stop recording. playback");
-      recorder = null;
-      playRecorded();
+      console.log("stop recording. (playback)");
+      //recorder = null;
+      //playRecorded();
     }
   }
+
+  /*--
+  // not working well. maybe header part is duplicated
+  function contineuRecording() {
+    if (! localStream) {
+      console.warn('stream not ready');
+      return;      
+    }
+    if (! recorder) {
+      console.warn('record not ready');
+      return;
+    }
+
+    recorder.start(1000);
+  }
+  --*/
 
   function playRecorded() {
     if (! blobUrl) {
