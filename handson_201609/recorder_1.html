@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>MeidaRecorder</title>
+</head>
+<body>
+  Recording with Firefox 48 / Camera 53<br />
+  <button onclick="startVideo()">Start Camera</button>
+  <button onclick="stopVideo()">Stop Camera</button>
+  &nbsp;&nbsp;
+  <button onclick="startRecording()">Start Recording</button>
+  <button onclick="stopRecording()">Stop Recording</button>
+  <a href="#" id="downloadlink" class="download">Download</a>
+  <br />
+  <video id="local_video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
+  <video id="playback_video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
+  <br />
+</body>
+<script type="text/javascript">
+  var localVideo = document.getElementById('local_video');
+  var localStream = null;
+
+  // ==== (1) カメラ映像の取得 ====
+  // -- カメラ映像を取得 --
+  function startVideo() {
+    // Chrome 53から使える、新しい書き方。 promise を返す
+    navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: false
+    })
+    .then(function (stream) { // success
+      localStream = stream;
+      
+      // videoタグで表示
+      localVideo.srcObject = localStream; // Chrome 53から使える (window.URL.createObjectURLを使わなくても良い)
+    }).catch(function (error) { // error
+      console.error('mediaDevice.getUserMedia() error:', error);
+      return;
+    });
+  }
+  
+  // -- カメラ映像を停止 --
+  function stopVideo() {
+    if (localStream) {
+      // track 毎に停止
+      for (track of localStream.getTracks()) {
+        track.stop();
+      }
+      localStream = null;
+    }
+    
+    // videoタグを停止
+    localVideo.pause();
+    localVideo.srcObject = null; // Chrome 53から使える (window.URL.revokeObjectURLを使わなくても良い)
+  }
+  // ==== (1) カメラ映像の取得 ====
+
+</script>
+</html>
+

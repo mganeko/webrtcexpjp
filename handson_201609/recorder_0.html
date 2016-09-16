@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>MeidaRecorder</title>
+</head>
+<body>
+  Recording with Firefox 48 / Camera 53<br />
+  <button onclick="startVideo()">Start Camera</button>
+  <button onclick="stopVideo()">Stop Camera</button>
+  &nbsp;&nbsp;
+  <button onclick="startRecording()">Start Recording</button>
+  <button onclick="stopRecording()">Stop Recording</button>
+  <a href="#" id="downloadlink" class="download">Download</a>
+  <br />
+  <video id="local_video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
+  <video id="playback_video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
+  <br />
+</body>
+<script type="text/javascript">
+  var localVideo = document.getElementById('local_video');
+  var localStream = null;
+
+</script>
+</html>
+
