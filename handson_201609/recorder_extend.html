@@ -1,0 +1,256 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>MeidaRecorder</title>
+</head>
+<body>
+  Firefox 48 / Camera 53 mediaDevice.getUserMedia()<br />
+  <button onclick="startVideo()">Start Camera</button>
+  <button onclick="stopVideo()">Stop Camera</button>
+  &nbsp;&nbsp;
+  <button onclick="startRecording()">Start Record</button>
+  <button onclick="stopRecording()">Stop Record</button>
+  <!-- not workin well
+  <button onclick="contineuRecording()">Continue Record</button>
+  -->
+  <a href="#" id="downloadlink" class="download">Download</a>
+  <!--
+  <button onclick="requestFile()">Request File</button>
+  -->
+  <br />
+  <video id="local_video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
+  <video id="playback_video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
+  <br />
+  <button onclick="addWavePlayer()">Add Wave</button>
+  <button onclick="addGhostPlayer()">Add Ghost</button>
+  <div id="container"></div>
+</body>
+<script type="text/javascript">
+  let localVideo = document.getElementById('local_video');
+  localVideo.onloadedmetadata = function(evt) {
+    console.log('width=' + localVideo.videoWidth + '  height=' + localVideo.videoHeight);
+  };
+  let localStream = null;
+
+  // ---- recording ---
+  let recorder =  null;
+  let blobUrl = null;
+  let chunks = [];
+  let playbackVideo =  document.getElementById('playback_video');
+  let anchor = document.getElementById('downloadlink');
+  
+  // start local video
+  function startVideo() {
+    navigator.mediaDevices.getUserMedia({
+      video: true,
+      /* --
+      {
+        //width: { min: 1280, max: 1920 }, // OK, effective on Chrome 53
+        //height: { min: 720, max: 1080 } //  OK, effective on Chrome 53
+        //width: 1280, height: 720 // NG, no effect
+        
+      },
+      --*/
+      audio: false
+    })
+    .then(function (stream) { // success
+      localStream = stream;
+      //localVideo.src = window.URL.createObjectURL(localStream);
+      localVideo.srcObject = localStream; // OK on Chrome 53
+    }).catch(function (error) { // error
+      console.error('mediaDevice.getUserMedia() error:', error);
+      return;
+    });
+  }
+  
+  // stop local video
+  function stopVideo() {
+    for (track of localStream.getTracks()) {
+      track.stop();
+    }
+    localStream = null;
+    
+    localVideo.pause();
+    //window.URL.revokeObjectURL(localVideo.src);
+    //localVideo.src = '';
+    localVideo.srcObject = null;
+  }
+
+  function startRecording() {
+    if (! localStream) {
+      console.warn('stream not ready');
+      return;      
+    }
+    if (recorder) {
+      console.warn('already recording');
+      return;
+    }
+
+    let options = {
+      //audioBitsPerSecond : 64000,
+      //videoBitsPerSecond : 512000,
+      //// mimeType : 'video/mp4' NG
+      //mimeType : 'video/webm'
+    };
+    recorder = new MediaRecorder(localStream, options);
+    chunks = [];
+    recorder.ondataavailable = function(evt) {
+      console.log("data available: evt.data.type=" + evt.data.type + " size=" + evt.data.size);
+      chunks.push(evt.data);
+    };
+    recorder.onstop = function(evt) {
+      console.log('recorder.onstop(), then playback');
+      //recorder = null;
+      playRecorded();
+    };
+
+    recorder.start(1000);
+  }
+
+  function stopRecording() {
+    if (recorder) {
+      recorder.stop();
+      console.log("stop recording. (playback)");
+      //recorder = null;
+      //playRecorded();
+    }
+  }
+
+  /*--
+  // not working well. maybe header part is duplicated
+  function contineuRecording() {
+    if (! localStream) {
+      console.warn('stream not ready');
+      return;      
+    }
+    if (! recorder) {
+      console.warn('record not ready');
+      return;
+    }
+
+    recorder.start(1000);
+  }
+  --*/
+
+  function playRecorded() {
+    if (! blobUrl) {
+      window.URL.revokeObjectURL(blobUrl);
+      blobUrl = null;
+    }
+
+    var videoBlob = new Blob(chunks, { type: "video/webm" });
+    blobUrl = window.URL.createObjectURL(videoBlob);
+    anchor.download = 'recorded.webm';
+    anchor.href = blobUrl;
+
+    if (blobUrl) {
+      playbackVideo.src = blobUrl;
+      // playbackVideo.srcObject = videoBlob; // NG
+      playbackVideo.onended = function() {
+        playbackVideo.pause();
+        playbackVideo.src = "";
+        // playbackVideo.srcObject = null; // NG
+      };
+
+      playbackVideo.play();
+    }
+  }
+
+  // -- wave and ghost ---
+  let container =  document.getElementById('container');
+
+  function addWavePlayer() {
+    if (! blobUrl) {
+      console.warn('not recorded yet');
+      return;
+    }
+
+    let newVideo = document.createElement('video');
+    newVideo.style.width = '160px';
+    newVideo.style.height = '120px';
+    newVideo.style.border = '1px solid';
+    //newVideo.controls = "1";
+    newVideo.volume = 0;
+    newVideo.src = blobUrl;
+    newVideo.loop = "1";
+    newVideo.onended = function () {
+      newVideo.play();
+    };
+
+    container.appendChild(newVideo);
+    newVideo.play();
+  }
+
+  function addGhostPlayer() {
+    if (! blobUrl) {
+      console.warn('not recorded yet');
+      return;
+    }
+
+    let newVideo = document.createElement('video');
+    newVideo.style.width = '320px';
+    newVideo.style.height = '240px';
+    newVideo.style.border = '1px solid';
+    //newVideo.controls = "1";
+    newVideo.volume = 0;
+    newVideo.src = blobUrl;
+    newVideo.style.position = "absolute";
+    newVideo.style.left = "10px";
+    newVideo.style.top = "300px";
+    newVideo.style.opacity = 0.2;
+
+    newVideo.onended = function () {
+      container.removeChild(newVideo);
+    };
+    
+    container.appendChild(newVideo);
+    newVideo.play();
+  }
+
+  /*--- trial of filesystem --
+  function requestFile() {
+    window.requestFileSystem  = window.requestFileSystem || window.webkitRequestFileSystem;
+
+    // --- persistent ---
+    //window.webkitStorageInfo.requestQuota(PERSISTENT, 10*1024*1024, function(grantedBytes) {
+    navigator.webkitPersistentStorage.requestQuota(10*1024*1024, function(grantedBytes) { // 10MB
+      window.requestFileSystem(PERSISTENT, grantedBytes, onInitFs, onErrorFs);
+    }, function(e) {
+      console.log('Error', e);
+    });
+
+    // --- temporary ---
+    //window.requestFileSystem(window.TEMPORARY, 5*1024*1024, onInitFs, onErrorFs); // 5MB
+  }
+
+  function onInitFs(fs) {
+    console.log('Opened file system: ' + fs.name);
+
+    fs.root.getFile('log.txt', {create: true}, function(fileEntry) {
+      // Create a FileWriter object for our FileEntry (log.txt).
+      fileEntry.createWriter(function(fileWriter) {
+        fileWriter.onwriteend = function(e) {
+          console.log('Write completed.');
+        };
+
+        fileWriter.onerror = function(e) {
+          console.log('Write failed: ' + e.toString());
+        };
+
+        var contents = "hello filesystem";
+        var blob = new Blob([contents], {type: "text/pain"});
+        fileWriter.write(blob);
+      }, onErrorFs);
+    }, onErrorFs);
+  }
+
+  function onErrorFs(err) {
+    console.error('filesystem error:', err);
+  }
+  --- trial of filesystem --*/
+
+
+</script>
+</html>
+
