@@ -11,24 +11,29 @@
   &nbsp;&nbsp;
   <button onclick="startRecording()">Start Recording</button>
   <button onclick="stopRecording()">Stop Recording</button>
-  <a href="#" id="downloadlink" class="download">Download</a>
+  <a href="#" id="downloadlink">Download</a>
   <br />
   <video id="local_video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
   <video id="playback_video" autoplay style="width: 240px; height: 180px; border: 1px solid black;"></video>
   <br />
 </body>
 <script type="text/javascript">
+  // ==== (1) カメラ映像の取得の準備 ====
   var localVideo = document.getElementById('local_video');
   var localStream = null;
+  // ==== (1) カメラ映像の取得の準備 ====
 
-  // ==== (2) 録画 ====
+  // ==== (2) 録画の準備 ====
   // --- recording ---
   var recorder =  null;
   var blobUrl = null;
   var chunks = [];
   var playbackVideo =  document.getElementById('playback_video');
+  // ==== (2) 録画の準備 ====
+
+  // ==== (3) ダウンロードの準備 ====
   var anchor = document.getElementById('downloadlink');
-  // ==== (2) 録画 ====
+  // ==== (3) ダウンロードの準備 ====
 
   // ==== (1) カメラ映像の取得 ==== 
   // -- カメラ映像を取得 --
@@ -129,6 +134,10 @@
     // 再生できるようにURLを生成
     blobUrl = window.URL.createObjectURL(videoBlob);
     
+    // ==== (3) ダウンロード ====
+
+    // ==== (3) ダウンロード ====
+
     // 録画した内容を再生
     if (blobUrl) {
       playbackVideo.src = blobUrl;
