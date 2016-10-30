@@ -171,6 +171,7 @@
 
  function setSpeaker() {
   var speakerId = getSelectedSpeaker();
+  localVideo.volume = 0;
   localVideo.setSinkId(speakerId)
   .then(function() {
    console.log('setSinkID Success');
