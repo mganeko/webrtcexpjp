@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+ <title>media devices</title>
+</head>
+<body>
+ <!--
+ <button id="start_button" onclick="startVideo()">StartVideo</button>
+ -->
+
+ <button id="devices_button" onclick="getDeviceList()">getDevices</button>
+ <select id="camera_list" size="1" style="width:160pt;">
+  <option>(video)</option>
+ </select>
+ <select id="mic_list" size="1" style="width:160pt;">
+  <option>(audio)</option>
+ </select>
+ <select id="speaker_list" size="1" style="width:160pt;">
+  <option>(speaker)</option>
+ </select>
+ <button id="start_video_button" onclick="startSelectedVideo()">StartSelectedVideo</button>
+ <button id="stop_button" onclick="stopVideo()">StopVideo</button>
+ <button id="speaker_button" onclick="setSpeaker()">SetSpeaker</button>
+ <!--
+ <button id="start_audio_button" onclick="startSelectedAudio(1)">StartSelectedAudio1</button>
+ <button id="start_audio_button" onclick="startSelectedAudio(2)">StartSelectedAudio2</button>
+ -->
+ <br />
+ <video id="local_video" width="320px" height="240px" autoplay="1" controls="1" style="border: 1px solid;"></video>
+ <div id="container"></div>
+</body>
+<script>
+ navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
+                           navigator.mozGetUserMedia || navigator.msGetUserMedia;
+ window.RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+ window.RTCIceCandidate = window.RTCIceCandidate || window.mozRTCIceCandidate || window.RTCIceCandidate;
+
+ var localVideo = document.getElementById('local_video');
+ var videoContainer = document.getElementById('container');
+ var micList = document.getElementById("mic_list");
+ var cameraList = document.getElementById("camera_list");
+ var speakerList = document.getElementById("speaker_list");
+
+ var localStream = null;
+ var localVideoStream = null;
+ var localAudioStream1 = null;
+ var localAudioStream2 = null;
+
+ // Request the usermedia
+ function startVideo() {
+  //navigator.getUserMedia({video: true, fake: true, audio: false}, showMedia, errCallback); // fake video, ok but no device label
+  navigator.getUserMedia({video: true, audio: true}, showMedia, errCallback); // momo
+  //navigator.getUserMedia({video: true, audio: { mandatory: { echoCancellation : false} }}, showMedia, errCallback); // <-- stereo OK, LR NG
+  //navigator.getUserMedia({video: true, audio: { mandatory: { echoCancellation : false, googEchoCancellation: false} }}, showMedia, errCallback); // <-- stereo OK, LR OK
+ }
+
+ function showMedia(stream) {
+  localStream  = stream;
+  localVideo.src = window.URL.createObjectURL(stream);
+  localVideo.volume = 0;
+  //localVideo.volume = 1;
+  localVideo.play();
+  //srcStreams.push(localStream);
+
+  logStream('getVideo', stream);
+ }
+
+ var errCallback = function(e) {
+  console.log('media error', e);
+ };
+ 
+ function stopVideo() {
+  if (localStream) {
+   localVideo.pause();
+   localVideo.src = "";
+
+   //localStream.stop();
+   stopStream(localStream);
+   localStream = null;
+  }
+ }
+
+ function stopStream(stream) {
+  if (!stream) {
+   console.warn('NO stream');
+   return;
+  }
+    
+  var tracks = stream.getTracks();
+  if (! tracks) {
+   console.warn('NO tracks');
+   return;
+  }
+
+  for (index in tracks) {
+   tracks[index].stop();
+  } 
+ }  
+
+ function logStream(msg, stream) {
+  console.log(msg + ': id=' + stream.id);
+
+  var videoTracks = stream.getVideoTracks();
+  if (videoTracks) {
+   console.log('videoTracks.length=' + videoTracks.length);
+   for (var i = 0; i < videoTracks.length; i++) {
+    var track = videoTracks[i];
+    console.log(' track.id=' + track.id);
+   }
+  }
+  
+  var audioTracks = stream.getAudioTracks();
+  if (audioTracks) {
+   console.log('audioTracks.length=' + audioTracks.length);
+   for (var i = 0; i < audioTracks.length; i++) {
+    var track = audioTracks[i];
+    console.log(' track.id=' + track.id);
+   }
+  }
+ }
+
+
+//--------------------
+
+ function clearDeviceList() {
+  while(micList.lastChild) {
+   micList.removeChild(micList.lastChild);
+  }
+  while(cameraList.lastChild) {
+   cameraList.removeChild(cameraList.lastChild);
+  }
+  while(speakerList.lastChild) {
+   speakerList.removeChild(speakerList.lastChild);
+  }
+ }
+
+ function addDevice(device) {
+  if (device.kind === 'audioinput') {
+   var id = device.deviceId;
+   var label = device.label || 'microphone'; // label is available for https 
+   var option = document.createElement('option');
+   option.setAttribute('value', id);
+   option.innerHTML = label + '(' + id + ')';;
+   micList.appendChild(option);
+
+   //dumpCapability(device);
+  }
+  else if (device.kind === 'videoinput') {
+   var id = device.deviceId;
+   var label = device.label || 'camera'; // label is available for https 
+
+   var option = document.createElement('option');
+   option.setAttribute('value', id);
+   option.innerHTML = label + '(' + id + ')';
+   cameraList.appendChild(option);
+
+   //dumpCapability(device);
+  }
+  else if (device.kind === 'audiooutput') {
+   var id = device.deviceId;
+   var label = device.label || 'speaker'; // label is available for https 
+
+   var option = document.createElement('option');
+   option.setAttribute('value', id);
+   option.innerHTML = label + '(' + id + ')';
+   speakerList.appendChild(option);   
+  }
+  else {
+   console.error('UNKNOWN Device kind:' + device.kind);
+  }
+ }
+
+ //function dumpCapability(device) {
+ //  var cap = device.getCapabilities();
+ //  console.log(cap);
+ //}
+
+ function getDeviceList() {
+  clearDeviceList();
+  navigator.mediaDevices.enumerateDevices()
+  .then(function(devices) {
+   devices.forEach(function(device) {
+    console.log(device.kind + ": " + device.label +
+                " id = " + device.deviceId);
+    addDevice(device);
+   });
+  })
+  .catch(function(err) {
+   console.error('enumerateDevide ERROR:', err);
+  });
+ }
+
+ function getSelectedVideo() {
+  var id = cameraList.options[cameraList.selectedIndex].value;
+  return id;
+ }
+
+ function getSelectedAudio() {
+  var id = micList.options[micList.selectedIndex].value;
+  return id;
+ }
+
+ function getSelectedSpeaker() {
+  var id = speakerList.options[speakerList.selectedIndex].value;
+  return id;
+ }
+
+ function setSpeaker() {
+  var speakerId = getSelectedSpeaker();
+  localVideo.setSinkId(speakerId)
+  .then(function() {
+   console.log('setSinkID Success');
+  })
+  .catch(function(err) {
+   console.error('setSinkId Err:', err);
+  });
+ }
+
+ function startSelectedVideo() {
+  var audioId = getSelectedAudio();
+  var deviceId = getSelectedVideo();
+  console.log('selected video device id=' + deviceId + ' ,  audio=' + audioId);
+  var constraints = {
+    audio: {
+     deviceId: audioId
+    },
+    video: { 
+     deviceId: deviceId
+    }
+  };
+  console.log('mediaDevice.getMedia() constraints:', constraints);
+
+  navigator.mediaDevices.getUserMedia(
+   constraints
+  ).then(function(stream) {
+   localVideoStream = stream;
+   logStream('selectedVideo', stream);
+   //localVideo.src = window.URL.createObjectURL(stream);
+   localVideo.srcObject = stream;
+  }).catch(function(err){
+   console.error('getUserMedia Err:', err);
+  });
+ }
+
+ function startSelectedAudio(num) {
+  var deviceId = getSelectedAudio();
+  console.log('selected audio device id=' + deviceId);
+  var constraints = {
+    video: false,
+    audio: { 
+     deviceId: deviceId
+    }
+  };
+  console.log('mediaDevice.getMedia() constraints:', constraints);
+
+  navigator.mediaDevices.getUserMedia(
+   constraints
+  ).then(function(stream) {
+   logStream('selectedAudio' + num, stream);
+   //localVideo.src = window.URL.createObjectURL(stream);
+   if (num === 1) {
+    localAudioStream1 = stream;
+   }
+   else if (num === 2) {
+    localAudioStream2 = stream;
+   }
+  }).catch(function(err){
+   console.error('getUserMedia Err:', err);
+  });
+ }
+
+ navigator.mediaDevices.ondevicechange = function (evt) {
+  console.log('mediaDevices.ondevicechange() evt:', evt);
+ };
+
+
+</script>
+</html>
