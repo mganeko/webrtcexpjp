@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>muLow test</title>
+  <style>
+   .button {
+       width: 150px;
+       height: 40px;
+   }
+  </style>
+</head>
+<body>
+ <h2>mu-low test </h2>
+ <button class="button" onclick="startMedia()">Start Mic</button>
+ <button class="button" onclick="stopMedia()">Stop Mic</button>
+ <br />
+ <!--
+ <video id="local_video" width="240px" height="180px" style="border: 1px solid black;"></video>
+ -->
+ <br /><br />
+ original <input type="range" id="local_volume" value="0" min="0" max="100" onchange="_onChangeLocalVolume()" />
+ <br />
+ compressd-decompress <input type="range" id="remote_volume" value="0" min="0" max="100" onchange="_onChangeRemoteVolume()" />
+ <br />
+ <!--
+ <button class="button" onclick="_readyAudio()">Audio Start</button>
+ <button class="button" onclick="_resetAudio()">Audio Stop</button>
+ -->
+
+
+ <script>
+  const BUFFER_SIZE = 1024;
+
+  window.AudioContext = window.AudioContext || window.webkitAudioContext || window.mozAudioContext;
+  let audioContext = new window.AudioContext();
+  let audio = {};
+  let audio_startTime = 0;
+  audio.remoteGain = null;
+  audio.source = null;
+  audio.filter = null;
+  audio.processor = null;
+  audio.localGain = null;
+  
+  let localStream = null;
+  let localVideo = document.getElementById('local_video');
+  let localAudioRange = document.getElementById('local_volume');
+  let remoteAudioRange = document.getElementById('remote_volume');
+  
+  function startMedia() {
+    navigator.mediaDevices.getUserMedia( {video:true, audio:true})
+    .then((stream) => {
+        localStream = stream;
+        //localVideo.srcObject = stream;
+        //localVideo.volume = 0;
+        //localVideo.play();
+
+        startLocalAudio();
+        _readyAudio();
+    })
+    .catch((err) => 
+        console.error('getUserMedia ERROR:', err)
+    );
+  }
+
+
+
+  function stopMedia() {
+    _resetAudio();
+
+    //localVideo.stcObject = null;
+    localStream.getTracks().forEach((track) =>
+      track.stop()
+    );
+    localStream = null;
+  }
+
+
+  // --- for audio ---
+  function startLocalAudio() {
+    let ctx = audioContext;
+
+    // マイク
+    audio.source = ctx.createMediaStreamSource(localStream);
+
+    // こちらを参考に（真似をする）
+    //   https://github.com/leader22/audio-streaming-over-websocket
+    //
+
+    // 電話くらいの品質にしておく
+    audio.filter = ctx.createBiquadFilter();
+    audio.filter.type = 'bandpass';
+    // アナログ電話は300Hz ~ 3.4kHz / ひかり電話は100Hz ~ 7kHz
+    audio.filter.frequency.value = (100 + 7000) / 2;
+    // 固定ならだいたい聴き良いのがこれくらい・・？
+    audio.filter.Q.value = 0.25;
+
+    // 音質には期待しないのでモノラルで飛ばす
+    audio.processor = ctx.createScriptProcessor(BUFFER_SIZE, 1, 1);
+    audio.processor.onaudioprocess = _onAudioProcess;
+
+    // 自分のフィードバックいらない
+    audio.localGain = ctx.createGain();
+    audio.localGain.gain.value = 0;
+
+    audio.source.connect(audio.filter);
+    audio.filter.connect(audio.processor);
+    //audio.processor.connect(audio.analyser);
+    audio.processor.connect(audio.localGain);
+    audio.localGain.connect(ctx.destination);
+  }
+
+  function _onAudioProcess(evt) {
+    let inputBuffer  = evt.inputBuffer;
+    let outputBuffer = evt.outputBuffer;
+    let inputData  = inputBuffer.getChannelData(0);
+    let outputData = outputBuffer.getChannelData(0);
+    console.log('_onAudioProcess() inputData.length=' + inputData.length);
+
+    // 入力をそのまま出力する
+    outputData.set(inputData);
+
+    
+    // 圧縮
+    let compressedData = _compressAudio(inputData);
+
+    // 復元
+    let decompressedData = _decomressAudio(compressedData);
+
+    // 再生
+    playback(decompressedData);
+    
+
+    // そのまま再生
+    //playback(inputData);
+  }
+
+  function _readyAudio() {
+    audio.remoteGain = audioContext.createGain();
+    audio.remoteGain.gain.value = 0;
+    audio.remoteGain.connect(audioContext.destination);
+  }
+
+  function _resetAudio() {
+    /*
+    if (audio.remoteGain) {
+      audio.remoteGain.disconnect();
+      audio.remoteGain = null;
+    }
+    */
+
+    _disconnectAll(audio);
+  }
+
+  function _disconnectAll(audioNodes) {
+    Object.keys(audioNodes).forEach(function(key) {
+      audioNodes[key] && audioNodes[key].disconnect();
+      audioNodes[key] = null;
+    });
+  }
+
+  function _onChangeRemoteVolume() {
+    let vol = remoteAudioRange.value;
+    if (audio.remoteGain) {
+      console.log('remoteAudioVolume=' + vol);
+      audio.remoteGain.gain.value = vol / 100;
+    }
+  }
+
+  function _onChangeLocalVolume() {
+    let vol = localAudioRange.value;
+    if (audio.localGain) {
+      console.log('localAudioVolume=' + vol);
+      audio.localGain.gain.value = vol / 100;
+    }
+  }
+
+  // -- サンプルの配列をμ-Low圧縮する --
+  function _compressAudio(srcArr) {
+    // srcArr: 32bit実数の配列
+
+    let mu = 127; //  -127〜127の整数で表現する
+    let alpha = 1.0 / Math.log(1 +mu) * mu; // 定数を計算しておく
+    let l = srcArr.length;
+    let arr = new Int8Array(l/2); // 8bit整数、サンプル数を半分に減らす
+
+    for (let i = 0; i < l; i +=2) { // 1つおきに取り出す
+      let s = srcArr[i];
+      if (Math.abs(s) > 1.0) {
+        console.warn('signal TOO big s=' + s);
+      }
+      let n = _muLow(s, mu, alpha); // 実数のまま計算
+      arr[i/2] = n; // ここで整数に丸める
+    }
+
+    return arr;
+
+    // -- 各サンプルをμ-Low圧縮する --
+    function _muLow(s, mu, alpha) {
+      let sign = Math.sign(s);
+      let absS = Math.abs(s);
+
+      let n =  sign * Math.log(1 + mu*absS) * alpha;
+      return n;
+    }
+  }
+
+  // -- サンプルの配列をμ-Lowで復元する --
+  function _decomressAudio(srcArr) {
+    // srcArr: 8bit整数の配列
+
+    let mu = 127; //  -127〜127の整数で表現されている
+    let mui = 1.0 / mu; // 定数を求める
+
+    let l = srcArr.length;
+    let arr = new Float32Array(l*2); // 32bit実数、サンプル数を倍に増やす
+
+    for (let i = 0; i < l; i++) {
+      let n = srcArr[i];
+      arr[i*2] = _invMuLow(n, mu, mui);
+
+      // 抜けているサンプルを、前後のサンプルの平均を取って推定する
+      if (i > 0) {
+        arr[i*2 -1] = (arr[i*2] + arr[i*2 -2]) / 2.0; 
+      }
+    }
+    arr[l*2 -1] = arr[l*2 -2]; // 最後のサンプルは一つ前の繰り返しで近似
+
+    return arr;
+
+    // 各サンプルをμ-Lowで復元する
+    function _invMuLow(n, mu, mui) {
+      let sign = Math.sign(n);
+      let absN = Math.abs(n);
+
+      let f = absN * mui;
+      let s = sign * mui * (Math.pow(1+mu, f) -1);
+      return s;
+    }
+  }
+
+  function playback(arr) {
+    if (! audio.remoteGain) {
+      // not ready to playback
+      return;
+    }
+
+    let ctx = audioContext;
+    let audioBuffer = ctx.createBuffer(1, BUFFER_SIZE, ctx.sampleRate);
+    audioBuffer.getChannelData(0).set(arr);
+
+    let source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audio.remoteGain);
+
+    /*
+    var currentTime = ctx.currentTime;
+    if (currentTime < audio_startTime) {
+      source.start(audio_startTime);
+      audio_startTime += audioBuffer.duration;
+    } else {
+      source.start(audio_startTime);
+      audio_startTime = currentTime + audioBuffer.duration;
+    }
+    */
+    source.start(0);
+  }
+
+ </script>
+</body>
+</html>
