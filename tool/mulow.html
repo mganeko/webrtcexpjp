@@ -19,9 +19,9 @@
  <video id="local_video" width="240px" height="180px" style="border: 1px solid black;"></video>
  -->
  <br /><br />
- original <input type="range" id="local_volume" value="0" min="0" max="100" onchange="_onChangeLocalVolume()" />
+ original sound<input type="range" id="local_volume" value="0" min="0" max="100" onchange="_onChangeLocalVolume()" />
  <br />
- compressd-decompress <input type="range" id="remote_volume" value="0" min="0" max="100" onchange="_onChangeRemoteVolume()" />
+ compress-decompress sound<input type="range" id="remote_volume" value="0" min="0" max="100" onchange="_onChangeRemoteVolume()" />
  <br />
 
 
@@ -39,12 +39,12 @@
   audio.localGain = null;
   
   let localStream = null;
-  let localVideo = document.getElementById('local_video');
+  //let localVideo = document.getElementById('local_video');
   let localAudioRange = document.getElementById('local_volume');
   let remoteAudioRange = document.getElementById('remote_volume');
   
   function startMedia() {
-    navigator.mediaDevices.getUserMedia( {video:true, audio:true})
+    navigator.mediaDevices.getUserMedia( {video:false, audio:true})
     .then((stream) => {
         localStream = stream;
         //localVideo.srcObject = stream;
