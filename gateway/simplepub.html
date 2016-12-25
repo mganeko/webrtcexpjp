@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Simple Pub</title>
+  <style>
+   .button {
+       width: 150px;
+       height: 50px;
+   }
+  </style>
+</head>
+<body>
+ <h2>SimplePub</h2>
+ <button class="button" onclick="startMedia()">StartMedia</button>
+ <button class="button" onclick="stopMedia()">StopMedia</button>
+ <br /><br />
+ <button class="button" onclick="startPub()">Publish</button>
+ <button class="button" onclick="stopPub()">Stop</button>
+
+ <h3>Remote Audio</h3>
+ <input type="range" id="remote_volume" value="0" min="0" max="100" onchange="_onChangeVolume()" />
+ <button class="button" onclick="_readyAudio()">Audio Start</button>
+ <button class="button" onclick="_resetAudio()">Audio Stop</button>
+
+ <h3>Video</h3>
+ <canvas id="snapshot_canvas" width="240px" height="180px" style="border: 1px solid blue;"></canvas>
+ <br />
+ <video id="local_video" width="240px" height="180px" style="border: 1px solid black;"></video>
+ <br />
+ remoto image<br />
+ <img id="remote_img" width="240px" height="180px" style="border: 1px solid red;"></img>
+
+ <!--
+ <script src="./app2.js"></script>
+ -->
+ <script>
+  const BUFFER_SIZE = 1024;
+
+  window.AudioContext = window.AudioContext || window.webkitAudioContext || window.mozAudioContext;
+  window.requestAnimationFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame;
+  window.cancelAnimationFrame = window.cancelAnimationFrame || window.webkitCancelAnimationFrame || window.mozCancelAnimationFrame;
+  let audioContext = new window.AudioContext();
+  let audio = {};
+  audio.remoteGain = null;
+  audio.source = null;
+  audio.filter = null;
+  audio.processor = null;
+  audio.localGain = null;
+  
+
+
+  let localStream = null;
+  let localVideo = document.getElementById('local_video');
+  let snapshotCanvas = document.getElementById('snapshot_canvas');
+  let snapshotContext = snapshotCanvas.getContext('2d');
+  let remoteImage = document.getElementById('remote_img');
+  let remoteAudioRange = document.getElementById('remote_volume');
+  
+  let timerId = null;
+
+  let _worker = null;
+  let _chName = '_simplepub_room';
+
+
+  function startMedia() {
+    navigator.mediaDevices.getUserMedia( {video:true, audio:true})
+    .then((stream) => {
+        localStream = stream;
+        localVideo.srcObject = stream;
+        localVideo.volume = 0;
+        localVideo.play();
+
+        startLocalAudio();
+    })
+    .catch((err) => 
+        console.error('getUserMedia ERROR:', err)
+    );
+  }
+
+
+
+  function stopMedia() {
+    localVideo.stcObject = null;
+    localStream.getTracks().forEach((track) =>
+      track.stop()
+    );
+    localStream = null;
+  }
+
+  function startPub() {
+    timerId = setInterval(takeSnapshot, 1000);
+  }
+
+  function stopPub() {
+    if (timerId) {
+        clearInterval(timerId);
+        timerId = null;
+    }
+  }
+
+  function takeSnapshot() {
+      //console.log('snapshot..');
+      snapshotContext.drawImage(localVideo, 
+        0, 0, localVideo.videoWidth, localVideo.videoHeight,
+        0, 0, snapshotCanvas.width, snapshotCanvas.height
+      );
+      
+      snapshotCanvas.toBlob(
+          function(blob) {
+                //_worker.postMessage({
+                //  type: 'IMAGE',
+                //  data: { buf: blob, ch: _chName }
+                //});
+                console.log('snapshot.. canvas.toBlob size=' + blob.size);
+                if (_worker) {
+                    _worker.postMessage({
+                        type: 'IMAGE',
+                        data: { blob: blob, ch: _chName }
+                    });
+                }
+          },
+          'image/jpeg'
+      );
+  }
+
+// ---- message from worker ----
+_worker = new Worker('simplepub_worker.js');
+_worker.addEventListener('message', _handleWorkerMsg);
+
+  function _handleWorkerMsg(evt) {
+    let payload = evt.data;
+    switch (payload.type) {
+      case 'notify':
+        console.log('workerMsg: notify:' + payload.message);
+        break;
+
+      case 'ack':
+      　console.log('---- NOT USED----');
+        console.log('workerMsg: ack:', payload.data);
+        break;
+
+      case 'image':
+        _showRemoteImage(payload.data);
+        break;
+
+      default:
+        console.log('workerMsg: DEFAULT:', payload);
+        break;
+    }
+  }
+
+  // ---- for image ---
+  function _showRemoteImage(buf) {
+    //let len = buf.byteLength;
+    //console.log('_showRemoteImage() IMAGE byteLength=' + len);
+
+    if (remoteImage.src && (remoteImage.src != '')) {
+      window.URL.revokeObjectURL(remoteImage.src);
+      remoteImage.src = '';
+    }
+
+    //let blob = new Blob([buf], {type: 'image/png'});
+    let blob = new Blob([buf], {type: 'image/jpeg'});
+    remoteImage.src = window.URL.createObjectURL(blob);
+  }
+
+  function _clearImage() {
+    remoteImage.removeAttribute('src');
+  }
+
+  // --- for audio ---
+  function startLocalAudio() {
+    let ctx = audioContext;
+
+    // マイク
+    audio.source = ctx.createMediaStreamSource(localStream);
+
+    // 電話くらいの品質にしておく
+    audio.filter = ctx.createBiquadFilter();
+    audio.filter.type = 'bandpass';
+    // アナログ電話は300Hz ~ 3.4kHz / ひかり電話は100Hz ~ 7kHz
+    audio.filter.frequency.value = (100 + 7000) / 2;
+    // 固定ならだいたい聴き良いのがこれくらい・・？
+    audio.filter.Q.value = 0.25;
+
+
+    // 音質には期待しないのでモノラルで飛ばす
+    audio.processor = ctx.createScriptProcessor(BUFFER_SIZE, 1, 1);
+    audio.processor.onaudioprocess = _onAudioProcess;
+
+    // 自分のフィードバックいらない
+    audio.localGain = ctx.createGain();
+    audio.localGain.gain.value = 0;
+
+    audio.source.connect(audio.filter);
+    audio.filter.connect(audio.processor);
+    //audio.processor.connect(audio.analyser);
+    audio.processor.connect(audio.localGain);
+    audio.localGain.connect(ctx.destination);
+  }
+
+  function _onAudioProcess(evt) {
+    let inputBuffer  = evt.inputBuffer;
+    let outputBuffer = evt.outputBuffer;
+    let inputData  = inputBuffer.getChannelData(0);
+    let outputData = outputBuffer.getChannelData(0);
+    console.log('_onAudioProcess() inputData.length=' + inputData.length);
+
+
+    // Bypassしつつ飛ばす
+    outputData.set(inputData);
+    //if (this.state.isPub) {        
+    //  this.$data._worker.postMessage({
+    //    type: 'AUDIO',
+
+    //    data: { buf: outputData, ch: this.chName }　// // try typed array direct, OK
+    //  });
+    //}
+  }
+
+  function _readyAudio() {
+    audio.remoteGain = audioContext.createGain();
+    audio.remoteGain.gain.value = 0;
+    audio.remoteGain.connect(audioContext.destination);
+  }
+
+  function _resetAudio() {
+    if (audio.remoteGain) {
+      audio.remoteGain.disconnect();
+      audio.remoteGain = null;
+    }
+  }
+
+  function _onChangeVolume() {
+    let vol = remoteAudioRange.value;
+    console.log('remoteAudioVolume=' + vol);
+    if (audio.remoteGain) {
+      audio.remoteGain.gain.value = vol / 100;
+    }
+  }
+
+
+
+
+
+ </script>
+</body>
+</html>
