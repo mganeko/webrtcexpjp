@@ -69,7 +69,7 @@ io.on('connection', function(socket) {
       var roomname = getRoomname();
 
       if (roomname) {
-        console.log('===== message broadcast to room -->' + roomname);
+        //console.log('===== message broadcast to room -->' + roomname);
         socket.broadcast.to(roomname).emit(type, message);
       }
       else {
@@ -83,12 +83,12 @@ io.on('connection', function(socket) {
     socket.on('message', function(message) {
         var date = new Date();
         message.from = socket.id;
-        console.log(date + 'id=' + socket.id + ' Received Message: ' + JSON.stringify(message));
+        //console.log(date + 'id=' + socket.id + ' Received Message: ' + JSON.stringify(message));
 
         // get send target
         var target = message.sendto;
         if (target) {
-          console.log('===== message emit to -->' + target);
+          //console.log('===== message emit to -->' + target);
           socket.to(target).emit('message', message);
           return;
         }
