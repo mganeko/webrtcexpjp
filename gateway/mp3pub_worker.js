@@ -1,15 +1,10 @@
 'use strict';
-//var io = require('socket.io-client');
-
-//const SOCKETIO_SERVER = 'https://signaling.talkin.info/';
-//const SOCKETIO_SERVER = 'http://localhost:3002/';
-//importScripts(SOCKETIO_SERVER + 'socket.io/socket.io.js');
 
 let ROOM_NAME = '_ios_bridge';
 let socket = null;
 
 // -- lamejs --
-importScripts("lame.all.js");
+importScripts("lame.all.js"); // from https://github.com/zhuker/lamejs
 const SAMPLE_RATE_REDUCE = 2; // make samples half size
 const BLOCK_SIZE = 576;
 let mp3encoder = null;
