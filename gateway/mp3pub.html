@@ -63,6 +63,13 @@
     isConnected = flag;
   }
 
+  function getSocketServerUrl() {
+    let protocol = window.location.protocol;
+    let hostname = window.location.hostname;
+    let port = '3002';
+    let url = protocol + '//' + hostname + ':' + port + '/';
+    return url;
+  }
 
   function startMedia() {
     initWorker();
@@ -82,10 +89,11 @@
   }
 
   function initWorker() {
+    let url = getSocketServerUrl();
     if (_worker) {
       _worker.postMessage({
         type: 'INIT',
-        server: 'http://localhost:3002/',
+        server: url,
         room: '_ios_gateway_room',
         sampleRate: audioContext.sampleRate
       });
