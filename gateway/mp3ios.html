@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>iOS mp3 client</title>
+  <style>
+   .button {
+       width: 80px;
+       height: 40px;
+   }
+  </style>
+</head>
+<body>
+ <h2>iOS client</h2>
+ <button class="button" id="start_button" onclick="startPub()">Start</button>
+ <button class="button" id="stop_button" onclick="stopPub()">Stop</button>
+
+ <h3>Remote Audio</h3>
+ Volume: <input type="range" id="remote_volume" value="50" min="0" max="100" onchange="_onChangeVolume()" />
+ <h3>Remote Video</h3>
+ <img id="remote_img" width="240px" height="180px" style="border: 1px solid red;"></img>
+ <h3>Reaction</h3>
+ <canvas id="reaction_canvas" width="240px" height="180px" style="border: 1px solid blue;"></canvas>
+ <br />
+ <button class="button" onclick="reaction('normal')">Normal</button>
+ <button class="button" onclick="reaction('ok')">OK</button>
+ <button class="button" onclick="reaction('ng')">NG</button>
+ <button class="button" onclick="reaction('question')">Question</button>
+
+ <h3>Prepare Reaction</h3>
+ Normal: <input id="normal_file" type="file" onchange="setSelectedFile('normal')"></input><br />
+ <img id="normal_img" src="img/normal_face.png" width="240px" height="180px" style="border: 1px solid black;"></img>
+ <br /><br />
+ OK: <input id="ok_file" type="file" onchange="setSelectedFile('ok')"></input><br />
+ <img id="ok_img" src="img/ok_face.png" width="240px" height="180px" style="border: 1px solid black;"></img>
+ <br /><br />
+ NG: <input id="ng_file" type="file" onchange="setSelectedFile('ng')"></input><br />
+ <img id="ng_img" src="img/ng_face.png" width="240px" height="180px" style="border: 1px solid black;"></img>
+ <br /><br />
+ Question: <input id="question_file" type="file" onchange="setSelectedFile('question')"></input><br />
+ <img id="question_img" src="img/question_face.png" width="240px" height="180px" style="border: 1px solid black;"></img>
+ <br />
+ log area
+ <div id="log_area"></div>
+ <!--
+ <script src="./app2.js"></script>
+ -->
+ <script>
+  const BUFFER_SIZE = 1024;
+  const SNAPSHOT_INTERVAL = 5000;
+  const REACTION_DULATION = 6000;
+  const INIT_REACTION_TIMER = 500;
+  const AUDIO_DROP_LIMIT = 5000;
+
+  window.AudioContext = window.AudioContext || window.webkitAudioContext || window.mozAudioContext;
+  window.requestAnimationFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame;
+  window.cancelAnimationFrame = window.cancelAnimationFrame || window.webkitCancelAnimationFrame || window.mozCancelAnimationFrame;
+  let audioContext = new window.AudioContext();
+  let audio = {};
+  audio.remoteGain = null;
+  audio.source = null;
+  audio.filter = null;
+  audio.processor = null;
+  audio.localGain = null;
+  let _audioStartTime = 0;
+  let imageFiles = [];
+
+  let reactionCanvas = document.getElementById('reaction_canvas');
+  let reactionContext = reactionCanvas.getContext('2d');
+  //let reactionImage = document.getElementById('reaction_img');
+  let remoteImage = document.getElementById('remote_img');
+  let remoteAudioRange = document.getElementById('remote_volume');
+  
+  let timerId = null;
+  let reactionTimerId = null;
+  let isConnected = false;
+
+  let _worker = null;
+  let _chName = '_simplepub_room';
+
+  let logArea = document.getElementById('log_area');
+  function addLog(text) {
+    console.log(text);
+    logArea.innerHTML += (text + '<br />');
+  }
+  function clearLog() {
+    logArea.innerHTML = '';
+  }
+
+  function setSelectedFile(kind) {
+    let selectedFile = document.getElementById(kind + '_file');
+    if (selectedFile.files.length == 0) {
+      addLog('WARN: file not selected: ' + kind);
+      return;
+    }
+    let file = selectedFile.files[0];
+    addLog(kind + ' selected file=' + file.name);
+    imageFiles[kind] = file;
+    showImage(kind, file)
+  }
+
+  function showImage(kind, file) {
+    let img = document.getElementById(kind + '_img');
+    img.src = window.URL.createObjectURL(file);
+  }
+
+  function loadLocalAudio(file) {    
+    let reader = new FileReader;
+    reader.readAsArrayBuffer(file);
+    reader.onload = function(evt) {
+      console.log('reader.onload(), evt:', evt);
+      addLog('reader.onload()');
+    }
+    reader.onloadend = function(evt) {
+      console.log('reader.onloadend(), evt:', evt);
+      addLog('reader.onloadend()');
+
+      audioContext.decodeAudioData(reader.result, function(buffer) {
+        addLog('after decodeAudioData');
+        playAudioContext(buffer);
+      },
+      function (err) {
+        addLog('decodeAudioData ERROR:' + JSON.stringify(err));
+        //addLog('decodeAudioData ERROR:' + err.err); // err === null
+      });
+
+    }
+    reader.onloadstart = function(evt) {
+      console.log('reader.onloadstart(), evt:', evt);
+      addLog('reader.onloadstart()');
+    }
+  }
+
+  function reaction(kind) {
+    addLog('reaction:' + kind);
+    if (reactionTimerId) {
+      clearTimeout(reactionTimerId);
+      reactionTimerId = null;
+    }
+    let img = document.getElementById(kind + '_img');
+    reactionContext.drawImage(img, 0, 0, reactionCanvas.width, reactionCanvas.height);
+    takeSnapshot();
+
+    if (kind !== 'normal') {
+      reactionTimerId = setTimeout(reaction, REACTION_DULATION, 'normal');
+    }
+  }
+
+  // -- connection ---
+  function connected() {
+    return isConnected;
+  }
+  function setConnected(flag) {
+    isConnected = flag;
+  }
+
+  function startPub() {
+    initWorker();
+
+    setConnected(true);
+    //timerId = setInterval(takeSnapshot, SNAPSHOT_INTERVAL);
+
+    _readyAudio();
+    addLog('startPub, audio ready');
+    updateButtons();
+
+    // --- init reaction as normal --
+    setTimeout(reaction, INIT_REACTION_TIMER, 'normal');
+  }
+
+  function initWorker() {
+    if (_worker) {
+      _worker.postMessage({
+        type: 'INIT',
+        server: 'http://localhost:3002/',
+        room: '_ios_gateway_room',
+        sampleRate: audioContext.sampleRate
+      });
+    }    
+  }
+
+  function stopPub() {
+    setConnected(false);
+    if (timerId) {
+        clearInterval(timerId);
+        timerId = null;
+    }
+
+    _resetAudio();
+    addLog('stopPub, audio reset');
+    updateButtons();
+  }
+
+  function takeSnapshot() {
+      if (! connected()) {
+        return;
+      }
+
+      let urlData = reactionCanvas.toDataURL('image/jpeg');
+      //console.log('snapshot len=' + urlData.length + '  url=' + urlData.slice(0, 50));
+      if (_worker) {
+          _worker.postMessage({
+              type: 'DATA_URL',
+              data: { url: urlData, ch: _chName }
+          });
+      }
+  }
+
+
+// ---- message from worker ----
+_worker = new Worker('mp3pub_worker.js');
+_worker.addEventListener('message', _handleWorkerMsg);
+
+  function _handleWorkerMsg(evt) {
+    if (! connected()) {
+      return;
+    }
+
+    let payload = evt.data;
+    switch (payload.type) {
+      case 'notify':
+        addLog('workerMsg: notify:' + payload.message);
+        break;
+
+      case 'ack':
+      　//console.log('---- NOT USED----');
+        console.log('workerMsg: ack:', payload.data);
+        break;
+
+      case 'image':
+        _showRemoteImage(payload.data);
+        break;
+
+      case 'data_url':
+        _showRemoteDataUrl(payload.data);
+        break;
+
+      case 'audio':
+        //_handleAudioBuffer(payload.data);
+        console.warn('AUDIO NOT HANDLED');
+        break;
+
+      case 'mp3_audio':
+        _handleMp3Buffer(payload.data);
+        //console.log('got mp3_audio byteLength=' + payload.data.byteLength);
+        break;
+
+      default:
+        console.log('workerMsg: DEFAULT:', payload);
+        break;
+    }
+  }
+
+  // ---- for image ---
+  function _showRemoteImage(buf) {
+    //let len = buf.byteLength;
+    //console.log('_showRemoteImage() IMAGE byteLength=' + len);
+
+    if (remoteImage.src && (remoteImage.src != '')) {
+      window.URL.revokeObjectURL(remoteImage.src);
+      remoteImage.src = '';
+    }
+
+    //let blob = new Blob([buf], {type: 'image/png'});
+    let blob = new Blob([buf], {type: 'image/jpeg'});
+    remoteImage.src = window.URL.createObjectURL(blob);
+  }
+
+  function _clearImage() {
+    remoteImage.removeAttribute('src');
+  }
+
+  function _showRemoteDataUrl(url) {
+    console.log('_showRemoteDataUrl() data_url  len=' + url.length + '  url=' + url.slice(0, 50));
+    remoteImage.src = url;
+  }
+
+
+  function _readyAudio() {
+    audio.remoteGain = audioContext.createGain();
+    audio.remoteGain.gain.value = 0.5; //0;
+    audio.remoteGain.connect(audioContext.destination);
+  }
+
+  function _resetAudio() {
+    _disconnectAll(audio);
+  }
+
+  function _onChangeVolume() {
+    let vol = remoteAudioRange.value;
+    console.log('remoteAudioVolume=' + vol);
+    if (audio.remoteGain) {
+      audio.remoteGain.gain.value = vol / 100;
+    }
+  }
+
+
+  function _disconnectAll(audioNodes) {
+    Object.keys(audioNodes).forEach(function(key) {
+      audioNodes[key] && audioNodes[key].disconnect();
+      audioNodes[key] = null;
+    });
+  }
+
+  function _handleAudioBuffer(buf) {
+    let ctx = audioContext;
+    let f32Audio = buf;
+    if (! audio.remoteGain) {
+      //console.warn('audioOutput not ready');
+      return;
+    }
+
+    var audioBuffer = ctx.createBuffer(1, BUFFER_SIZE, ctx.sampleRate);
+    audioBuffer.getChannelData(0).set(f32Audio);
+
+    var source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audio.remoteGain);
+
+    var currentTime = ctx.currentTime;
+    if (currentTime < _audioStartTime) {
+      //source.start(0);
+      source.start(_audioStartTime);
+      _audioStartTime += audioBuffer.duration;
+    } else {
+      let delayedTime = currentTime - _audioStartTime;
+      //console.log('audio diff=' + delayedTime);
+      if (delayedTime > 1000) {
+        console.log('=== audio delay is getting big diff=' + delayedTime);
+      }
+
+      // -- skip this set of samle if delay is too big --
+      if (delayedTime > AUDIO_DROP_LIMIT) {
+        console.warn('audio TOO delayed. DROP samples');
+        _audioStartTime = currentTime + audioBuffer.duration;
+        return;
+      }
+    
+      //source.start(0);
+      source.start(_audioStartTime);
+      _audioStartTime = currentTime + audioBuffer.duration;
+    }
+  }
+
+  function _handleMp3Buffer(buf) {
+    let ctx = audioContext;
+    if (! audio.remoteGain) {
+      return;
+    }
+
+    //let buf = data.buffer; // OK
+    ctx.decodeAudioData(buf, function(audioBuffer) {
+      console.log('mp3 decorderd. duration=' + audioBuffer.duration);
+      let source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audio.remoteGain);
+
+      let currentTime = ctx.currentTime;
+      if (currentTime < _audioStartTime) {
+        //source.start(audioPlaybackStartTime);
+        source.start(0);
+        _audioStartTime += audioBuffer.duration;
+      }
+      else if (currentTime > _audioStartTime + 1) {
+        console.warn('playback too late, skip this buffer');
+        source.disconnect();
+        audioBuffer = null; 
+        source = null;
+        _audioStartTime = currentTime;
+        return;
+      }
+      else {
+        source.start(0);
+        _audioStartTime = currentTime + audioBuffer.duration;
+      }
+    });
+  }
+
+  function updateButtons() {
+    if (connected()) {
+      document.getElementById('start_button').disabled = 'disabled';
+      document.getElementById('stop_button').removeAttribute('disabled');
+    }
+    else {
+      document.getElementById('start_button').removeAttribute('disabled');
+      document.getElementById('stop_button').disabled = 'disabled';
+    }
+  }
+
+  updateButtons();
+ </script>
+</body>
+</html>
