@@ -1,6 +1,6 @@
 # WebRTC 実験室
 
-WebRTC 関連の実験(HTML, JavaScript)を公開します。
+WebRTC 関連の実験(HTML, JavaScript)を公開します。(MIT ライセンス)
 
 GitHub Pages は[こちら](https://mganeko.github.io/webrtcexpjp/)
 
