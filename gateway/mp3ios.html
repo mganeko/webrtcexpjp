@@ -178,6 +178,7 @@
   }
 
   function initWorker() {
+    addLog('audio sampleRate=' + audioContext.sampleRate);
     let url = getSocketServerUrl();
     if (_worker) {
       _worker.postMessage({
