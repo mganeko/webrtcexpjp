@@ -86,7 +86,12 @@
 
   function playVideo(element, stream) {
     if ('srcObject' in element) {
-      element.srcObject = stream;
+      if (! element.srcObject) {
+        element.srcObject = stream;
+      }
+      else {
+        console.log('stream alreay playnig, so skip');
+      }
     }
     else {
       element.src = window.URL.createObjectURL(stream);
