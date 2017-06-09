@@ -39,6 +39,8 @@
   let chunks = [];
   let playbackVideo =  document.getElementById('playback_video');
   let anchor = document.getElementById('downloadlink');
+  let chunkCount = 0;
+  let recordEnding = false;
   
   // start local video
   function startVideo() {
@@ -95,21 +97,33 @@
     };
     recorder = new MediaRecorder(localStream, options);
     chunks = [];
+    chunkCount = 0;
+    recordEnding = false;
     recorder.ondataavailable = function(evt) {
       console.log("data available: evt.data.type=" + evt.data.type + " size=" + evt.data.size);
-      chunks.push(evt.data);
+
+      // --- skip some chunks for timelapse
+      //if ( ((chunkCount % 2) == 0) || recordEnding) { // recodEnding have NO effect
+      if ((chunkCount % 2) == 0) { 
+        chunks.push(evt.data);
+      }
+      chunkCount++;
     };
     recorder.onstop = function(evt) {
       console.log('recorder.onstop(), then playback');
       //recorder = null;
+      recordEnding = false;
       playRecorded();
     };
 
-    recorder.start(1000);
+    //recorder.start(1000);
+    //recorder.start(5000);
+    recorder.start(500);
   }
 
   function stopRecording() {
     if (recorder) {
+      recordEnding = true;
       recorder.stop();
       console.log("stop recording. (playback)");
       //recorder = null;
@@ -139,10 +153,16 @@
       blobUrl = null;
     }
 
-    var videoBlob = new Blob(chunks, { type: "video/webm" });
-    blobUrl = window.URL.createObjectURL(videoBlob);
-    anchor.download = 'recorded.webm';
-    anchor.href = blobUrl;
+    try {
+      var videoBlob = new Blob(chunks, { type: "video/webm" });
+      blobUrl = window.URL.createObjectURL(videoBlob);
+      anchor.download = 'recorded.webm';
+      anchor.href = blobUrl;
+    }
+    catch (e) {
+      console.error('Blob ERROR:', e);
+      return;
+    }
 
     if (blobUrl) {
       playbackVideo.src = blobUrl;
@@ -152,8 +172,17 @@
         playbackVideo.src = "";
         // playbackVideo.srcObject = null; // NG
       };
+      playbackVideo.onerror = function(err) {
+        console.error('video.onerror():', err);
+      };
 
-      playbackVideo.play();
+      try {
+        playbackVideo.play();
+      }
+      catch (e) {
+        console.error('play ERROR:', e);
+        return;
+      }
     }
   }
 
