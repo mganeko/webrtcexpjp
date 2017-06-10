@@ -24,6 +24,7 @@ Qiitaの記事は[こちら](http://qiita.com/massie_g/items/5a6c4b69374d5997dc3
 * 基本の手動シグナリング [basic2016/hand_signaling.html](/basic2016/hand_signaling.html)
 
 ### 手動シグナリング番外編
+* Safari TP32でも動く、ontrack/addTrack対応版 [basic2016/hand_signaling_track.html](/basic2016/hand_signaling_track.html)
 * adapter.jsを使ってEdgeでも動く手動シグナリング [basic2016/hand_signaling_adapter.html](/basic2016/hand_signaling_adapter.html)
 * 手動シグナリングでSDPを変更してみる [basic2016/hand_signaling_modify.html](/basic2016/hand_signaling_modify.html)
 
