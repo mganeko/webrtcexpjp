@@ -12,6 +12,11 @@ Qiitaの記事は[こちら](http://qiita.com/massie_g/items/5a6c4b69374d5997dc3
 
 * ローカルの映像/音声ファイルをメディアストリームに変換 [file_to_stream.html](/tool/file_to_stream.html])
 
+### ブラウザの BroadcastChannel を使ってシグナリング
+* BroadcastChannelを使ったシグナリングを行う多人数ビデオチャット [basic2016/multi_bc.html](/basic2016/multi_bc.html)
+
+
+
 ## HTML5Experts.jp WebRTC入門2016 のサンプル
 [WebRTC入門2016はこちら](https://html5experts.jp/series/webrtc2016/)
 
