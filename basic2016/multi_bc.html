@@ -3,9 +3,6 @@
 <head>
  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
  <title>multi party with BroadcastChannel</title>
- <!--
- <script src="http://localhost:3002/socket.io/socket.io.js"></script>
- -->
  <script>
    function _assert(desc, v) {
      if (v) {
@@ -30,24 +27,10 @@
   </div>
   <div id="container">
   </div>
-  <!--
-  <p>SDP to send:<br />
-    <textarea id="text_for_send_sdp" rows="5" cols="60" readonly="readonly">SDP to send</textarea>
-  </p>
-  <p>SDP received:&nbsp;
-    <button type="button" onclick="onSdpText();">Receive remote SDP</button>
-    <br />
-    <textarea id="text_for_receive_sdp" rows="5" cols="60"></textarea>
-  </p>
-  -->
 </body>
 <script type="text/javascript">
   let localVideo = document.getElementById('local_video');
-  //let remoteVideo = document.getElementById('remote_video');
   let localStream = null;
-  //let peerConnection = null;
-  //let textForSendSdp = document.getElementById('text_for_send_sdp');
-  //let textToReceiveSdp = document.getElementById('text_for_receive_sdp');
 
   // ---- for multi party -----
   let peerConnections = [];
@@ -154,71 +137,6 @@
   function sendMessage(msg) {
     broadcast.postMessage(msg);
   }
-
-/*
-  // ----- use socket.io ---
-  let port = 3002;
-  let socket = io.connect('http://localhost:' + port + '/');
-  let room = getRoomName();
-  socket.on('connect', function(evt) {
-    console.log('socket.io connected. enter room=' + room );
-    socket.emit('enter', room);
-  });
-  socket.on('message', function(message) {
-    console.log('message:', message);
-    let fromId = message.from;
-
-    if (message.type === 'offer') {
-      // -- got offer ---
-      console.log('Received offer ...');
-      let offer = new RTCSessionDescription(message);
-      setOffer(fromId, offer);
-    }
-    else if (message.type === 'answer') {
-      // --- got answer ---
-      console.log('Received answer ...');
-      let answer = new RTCSessionDescription(message);
-      setAnswer(fromId, answer);
-    }
-    else if (message.type === 'candidate') {
-      // --- got ICE candidate ---
-      console.log('Received ICE candidate ...');
-      let candidate = new RTCIceCandidate(message.ice);
-      console.log(candidate);
-      addIceCandidate(fromId, candidate);
-    }
-    else if (message.type === 'call me') {
-      if (! isReadyToConnect()) {
-        console.log('Not ready to connect, so ignore');
-        return;
-      }
-      else if (! canConnectMore()) {
-        console.warn('TOO MANY connections, so ignore');
-      }
-
-      if (isConnectedWith(fromId)) {
-        // already connnected, so skip
-        console.log('already connected, so ignore');
-      }
-      else {
-        // connect new party
-        makeOffer(fromId);
-      }
-    }
-    else if (message.type === 'bye') {
-      if (isConnectedWith(fromId)) {
-        stopConnection(fromId);
-      }
-    }
-  });
-  socket.on('user disconnected', function(evt) {
-    console.log('====user disconnected==== evt:', evt);
-    let id = evt.id;
-    if (isConnectedWith(id)) {
-      stopConnection(id);
-    }
-  });
-*/
 
   // --- broadcast message to all members in room
   function emitRoom(msg) {
@@ -455,38 +373,9 @@
     }
   }
 
-  /*--
-  // ----- hand signaling ----
-  function onSdpText() {
-    let text = textToReceiveSdp.value;
-    if (peerConnection) {
-      console.log('Received answer text...');
-      let answer = new RTCSessionDescription({
-        type : 'answer',
-        sdp : text,
-      });
-      setAnswer(answer);
-    }
-    else {
-      console.log('Received offer text...');
-      let offer = new RTCSessionDescription({
-        type : 'offer',
-        sdp : text,
-      });
-      setOffer(offer);
-    }
-    textToReceiveSdp.value ='';
-  }
-  --*/
  
   function sendSdp(id, sessionDescription) {
     console.log('---sending sdp ---');
-
-    /*---
-    textForSendSdp.value = sessionDescription.sdp;
-    textForSendSdp.focus();
-    textForSendSdp.select();
-    ----*/
 
     let message = { type: sessionDescription.type, sdp: sessionDescription.sdp };
     console.log('sending SDP=' + message);
@@ -633,11 +522,6 @@
   }
 
   function setOffer(id, sessionDescription) {
-    /*
-    if (peerConnection) {
-      console.error('peerConnection alreay exist!');
-    }
-    */
     _assert('setOffer must not connected yet', (! isConnectedWith(id)) );    
     let peerConnection = prepareNewConnection(id);
     addConnection(id, peerConnection);
@@ -704,18 +588,6 @@
   
   // start PeerConnection
   function connect() {
-    /*
-    debugger; // SHOULD NOT COME HERE
-
-    if (! peerConnection) {
-      console.log('make Offer');
-      makeOffer();
-    }
-    else {
-      console.warn('peer already exist.');
-    }
-    */
-
     if (! isReadyToConnect()) {
       console.warn('NOT READY to connect');
     }
@@ -729,18 +601,6 @@
 
   // close PeerConnection
   function hangUp() {
-    /*
-    if (peerConnection) {
-      console.log('Hang up.');
-      peerConnection.close();
-      peerConnection = null;
-      pauseVideo(remoteVideo);
-    }
-    else {
-      console.warn('peer NOT exist.');
-    }
-    */
-
     emitRoom({ type: 'bye' });  
     stopAllConnection();
   }
