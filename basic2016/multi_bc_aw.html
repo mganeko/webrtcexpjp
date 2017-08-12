@@ -1,0 +1,673 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>multi party with BroadcastChannel</title>
+ <script>
+   function _assert(desc, v) {
+     if (v) {
+       return;
+     }
+     else {
+       let caller = _assert.caller || 'Top level';
+       console.error('ASSERT in %s, %s is :', caller, desc, v);
+     }
+   }
+  </script>
+</head>
+<body>
+  BroadcastChannel signaling for multi-party (trickle ICE)<br />
+  With async/await<br />
+  <button type="button" onclick="startVideo();">Start Video</button>
+  <button type="button" onclick="stopVideo();">Stop Video</button>
+  &nbsp;
+  <button type="button" onclick="connect();">Connect</button>
+  <button type="button" onclick="hangUp();">Hang Up</button> 
+  <div>
+    <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+  </div>
+  <div id="container">
+  </div>
+</body>
+<script type="text/javascript">
+  "use strict"
+
+  let localVideo = document.getElementById('local_video');
+  let localStream = null;
+
+  // ---- for multi party -----
+  let peerConnections = [];
+  //let remoteStreams = [];
+  let remoteVideos = [];
+  const MAX_CONNECTION_COUNT = 3;
+
+  // --- multi video ---
+  let container = document.getElementById('container');
+  _assert('container', container);
+
+  // --- prefix -----
+  navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
+                            navigator.mozGetUserMedia || navigator.msGetUserMedia;
+  RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+  RTCSessionDescription = window.RTCSessionDescription || window.webkitRTCSessionDescription || window.mozRTCSessionDescription;
+
+
+  // http://qiita.com/psn/items/d7ac5bdb5b5633bae165
+  function generateUuid() {
+    // https://github.com/GoogleChrome/chrome-platform-analytics/blob/master/src/internal/identifier.js
+    // const FORMAT: string = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx";
+    let chars = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".split("");
+    for (let i = 0, len = chars.length; i < len; i++) {
+        switch (chars[i]) {
+            case "x":
+                chars[i] = Math.floor(Math.random() * 16).toString(16);
+                break;
+            case "y":
+                chars[i] = (Math.floor(Math.random() * 4) + 8).toString(16);
+                break;
+        }
+    }
+    return chars.join("");
+  }
+
+  // ----- prepare BroadcastChannel for signaling ----
+  const selfId = generateUuid();
+  console.log('UUID selfId=' + selfId);
+  const room = getRoomName();
+  let broadcast = null;
+  prepareSendChannel(room);
+
+  function prepareSendChannel(channelName) {
+    broadcast = new BroadcastChannel(channelName);
+    console.log('connect BroadcastChannel name=' + channelName);
+    broadcast.onmessage = function(evt) {
+      console.log('bc onmessage() data:', evt.data);
+      let message = JSON.parse(evt.data);
+      let fromId = message.from;
+      let toId = message.sendto;
+      if (toId) {
+        if (toId !== selfId) {
+          console.log('NOT message for me, so IGNORE');
+          return;
+        }
+      }
+
+      if (message.type === 'offer') {
+        // -- got offer ---
+        console.log('Received offer ...');
+        let offer = new RTCSessionDescription(message);
+        setOffer(fromId, offer);
+      }
+      else if (message.type === 'answer') {
+        // --- got answer ---
+        console.log('Received answer ...');
+        let answer = new RTCSessionDescription(message);
+        setAnswer(fromId, answer);
+      }
+      else if (message.type === 'candidate') {
+        // --- got ICE candidate ---
+        console.log('Received ICE candidate ...');
+        let candidate = new RTCIceCandidate(message.ice);
+        console.log(candidate);
+        addIceCandidate(fromId, candidate);
+      }
+      else if (message.type === 'call me') {
+        if (! isReadyToConnect()) {
+          console.log('Not ready to connect, so ignore');
+          return;
+        }
+        else if (! canConnectMore()) {
+          console.warn('TOO MANY connections, so ignore');
+        }
+
+        if (isConnectedWith(fromId)) {
+          // already connnected, so skip
+          console.log('already connected, so ignore');
+        }
+        else {
+          // connect new party
+          makeOffer(fromId);
+        }
+      }
+      else if (message.type === 'bye') {
+        if (isConnectedWith(fromId)) {
+          stopConnection(fromId);
+        }
+      }      
+    }
+  }
+
+  function sendMessage(msg) {
+    broadcast.postMessage(msg);
+  }
+
+  // --- broadcast message to all members in room
+  function emitRoom(msg) {
+    //socket.emit('message', msg);
+    msg.from = selfId;
+    let message = JSON.stringify(msg);
+    broadcast.postMessage(message);
+  }
+
+  function emitTo(id, msg) {
+    msg.sendto = id;
+    msg.from = selfId;
+    //socket.emit('message', msg);
+    let message = JSON.stringify(msg);
+    broadcast.postMessage(message);
+  }
+
+  // -- room名を取得 --
+  function getRoomName() { // たとえば、 URLに  ?roomname  とする
+    let url = document.location.href;
+    let args = url.split('?');
+    if (args.length > 1) {
+      let room = args[1];
+      if (room != '') {
+        return room;
+      }
+    }
+    return '_testroom';
+  }
+
+  // ---- for multi party -----
+  function isReadyToConnect() {
+    if (localStream) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+
+  // --- RTCPeerConnections ---
+  function getConnectionCount() {
+    return peerConnections.length;
+  }
+
+  function canConnectMore() {
+    return (getConnectionCount() < MAX_CONNECTION_COUNT);
+  }
+
+  function isConnectedWith(id) {
+    if (peerConnections[id])  {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+
+  function addConnection(id, peer) {
+    _assert('addConnection() peer', peer);
+    _assert('addConnection() peer must NOT EXIST', (! peerConnections[id]));
+    peerConnections[id] = peer;
+  }
+
+  function getConnection(id) {
+    let peer = peerConnections[id];
+    _assert('getConnection() peer must exist', peer);
+    return peer;
+  }
+
+  function deleteConnection(id) {
+    _assert('deleteConnection() peer must exist', peerConnections[id]);
+    delete peerConnections[id];
+  }
+
+  function stopConnection(id) {
+    detachVideo(id);
+
+    if (isConnectedWith(id)) {
+      let peer = getConnection(id);
+      peer.close();
+      deleteConnection(id);
+    }
+  }
+
+  function stopAllConnection() {
+    for (let id in peerConnections) {
+      stopConnection(id);
+    }
+  }
+
+  // --- video elements ---
+  function attachVideo(id, stream) {
+    let video = addRemoteVideoElement(id);
+    playVideo(video, stream);
+    video.volume = 1.0;
+  }
+
+  function detachVideo(id) {
+    let video = getRemoteVideoElement(id);
+    pauseVideo(video);
+    deleteRemoteVideoElement(id);
+  }
+  
+  function isRemoteVideoAttached(id) {
+    if (remoteVideos[id]) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+
+  function addRemoteVideoElement(id) {
+    _assert('addRemoteVideoElement() video must NOT EXIST', (! remoteVideos[id]));
+    let video = createVideoElement('remote_video_' + id);
+    remoteVideos[id] = video;
+    return video;
+  }
+
+  function getRemoteVideoElement(id) {
+    let video = remoteVideos[id];
+    _assert('getRemoteVideoElement() video must exist', video);
+    return video;
+  }
+
+  function deleteRemoteVideoElement(id) {
+    _assert('deleteRemoteVideoElement() stream must exist', remoteVideos[id]);
+    removeVideoElement('remote_video_' + id);
+    delete remoteVideos[id];
+  }
+
+  function createVideoElement(elementId) {
+    let video = document.createElement('video');
+    video.width = '240';
+    video.height = '180';
+    video.id = elementId;
+
+    video.style.border = 'solid black 1px';
+    video.style.margin = '2px';
+
+    container.appendChild(video);
+
+    return video;
+  }
+
+  function removeVideoElement(elementId) {
+    let video = document.getElementById(elementId);
+    _assert('removeVideoElement() video must exist', video);
+
+    container.removeChild(video);
+    return video;
+  }
+
+  // ---------------------- media handling ----------------------- 
+  // start local video
+  async function startVideo() {
+    if (localStream) {
+      console.warn('already got localVideo, so SKIP');
+      return;
+    }
+
+    /*
+    getDeviceStream({video: true, audio: true}) // audio: false <-- ontrack once, audio:true --> ontrack twice!!
+    .then(function (stream) { // success
+      localStream = stream;
+      playVideo(localVideo, stream);
+    }).catch(function (error) { // error
+      console.error('getUserMedia error:', error);
+      return;
+    });
+    */
+
+    localStream = await getDeviceStream({video: true, audio: true})
+    .catch(err => {
+      console.error('getUserMedia error:', err);
+      return;
+    });
+
+    playVideo(localVideo, localStream);
+  }
+
+  // stop local video
+  function stopVideo() {
+    pauseVideo(localVideo);
+    stopLocalStream(localStream);
+    localStream = null;
+  }
+
+  function stopLocalStream(stream) {
+    let tracks = stream.getTracks();
+    if (! tracks) {
+      console.warn('NO tracks');
+      return;
+    }
+    
+    for (let track of tracks) {
+      track.stop();
+    }
+  }
+  
+  function getDeviceStream(option) {
+    if ('getUserMedia' in navigator.mediaDevices) {
+      console.log('navigator.mediaDevices.getUserMadia');
+      return navigator.mediaDevices.getUserMedia(option);
+    }
+    else {
+      console.log('wrap navigator.getUserMadia with Promise');
+      return new Promise(function(resolve, reject){    
+        navigator.getUserMedia(option,
+          resolve,
+          reject
+        );
+      });      
+    }
+  }
+
+  function playVideo(element, stream) {
+    if ('srcObject' in element) {
+      if (! element.srcObject) {
+        element.srcObject = stream;
+      }
+      else {
+        console.log('stream alreay playnig, so skip');
+      }
+    }
+    else {
+      element.src = window.URL.createObjectURL(stream);
+    }
+    element.play();
+    element.volume = 0;
+  }
+
+  function pauseVideo(element) {
+    element.pause();
+    if ('srcObject' in element) {
+      element.srcObject = null;
+    }
+    else {
+      if (element.src && (element.src !== '') ) {
+        window.URL.revokeObjectURL(element.src);
+      }
+      element.src = '';
+    }
+  }
+
+ 
+  function sendSdp(id, sessionDescription) {
+    console.log('---sending sdp ---');
+
+    let message = { type: sessionDescription.type, sdp: sessionDescription.sdp };
+    console.log('sending SDP=' + message);
+    //ws.send(message);
+    emitTo(id, message);
+  }
+
+  function sendIceCandidate(id, candidate) {
+    console.log('---sending ICE candidate ---');
+    let obj = { type: 'candidate', ice: candidate };
+    //let message = JSON.stringify(obj);
+    //console.log('sending candidate=' + message);
+    //ws.send(message);
+    emitTo(id, obj);
+  }
+
+  // ---------------------- connection handling -----------------------
+  function prepareNewConnection(id) {
+    let pc_config = {"iceServers":[]};
+    let peer = new RTCPeerConnection(pc_config);
+
+    // --- on get remote stream ---
+    if ('ontrack' in peer) {
+      peer.ontrack = function(event) {
+        let stream = event.streams[0];
+        console.log('-- peer.ontrack() stream.id=' + stream.id);
+        if (isRemoteVideoAttached(id)) {
+          console.log('stream already attached, so ignore');
+        }
+        else {
+          //playVideo(remoteVideo, stream);
+          attachVideo(id, stream);
+        }
+      };
+    }
+    else {
+      peer.onaddstream = function(event) {
+        let stream = event.stream;
+        console.log('-- peer.onaddstream() stream.id=' + stream.id);
+        //playVideo(remoteVideo, stream);
+        attachVideo(id, stream);
+      };
+    }
+
+    // --- on get local ICE candidate
+    peer.onicecandidate = function (evt) {
+      if (evt.candidate) {
+        console.log(evt.candidate);
+
+        // Trickle ICE の場合は、ICE candidateを相手に送る
+        sendIceCandidate(id, evt.candidate);
+
+        // Vanilla ICE の場合には、何もしない
+      } else {
+        console.log('empty ice event');
+
+        // Trickle ICE の場合は、何もしない
+        
+        // Vanilla ICE の場合には、ICE candidateを含んだSDPを相手に送る
+        //sendSdp(id, peer.localDescription);
+      }
+    };
+
+    // --- when need to exchange SDP ---
+    peer.onnegotiationneeded = function(evt) {
+      console.log('-- onnegotiationneeded() ---');
+    };
+
+    // --- other events ----
+    peer.onicecandidateerror = function (evt) {
+      console.error('ICE candidate ERROR:', evt);
+    };
+
+    peer.onsignalingstatechange = function() {
+      console.log('== signaling status=' + peer.signalingState);
+    };
+
+    peer.oniceconnectionstatechange = function() {
+      console.log('== ice connection status=' + peer.iceConnectionState);
+      if (peer.iceConnectionState === 'disconnected') {
+        console.log('-- disconnected --');
+        //hangUp();
+        stopConnection(id);
+      }
+    };
+
+    peer.onicegatheringstatechange = function() {
+      console.log('==***== ice gathering state=' + peer.iceGatheringState);
+    };
+    
+    peer.onconnectionstatechange = function() {
+      console.log('==***== connection state=' + peer.connectionState);
+    };
+
+    peer.onremovestream = function(event) {
+      console.log('-- peer.onremovestream()');
+      //pauseVideo(remoteVideo);
+      deleteRemoteStream(id);
+      detachVideo(id);
+    };
+    
+    
+    // -- add local stream --
+    if (localStream) {
+      console.log('Adding local stream...');
+      if ('addTrack' in peer) {
+        console.log('use addTrack()');
+        let tracks = localStream.getTracks();
+        for (let track of tracks) {
+          let sender = peer.addTrack(track, localStream);
+        }
+      }
+      else {
+        console.log('use addStream()');  
+        peer.addStream(localStream);          
+      }
+    }
+    else {
+      console.warn('no local stream, but continue.');
+    }
+
+    return peer;
+  }
+
+  async function makeOffer(id) {
+    _assert('makeOffer must not connected yet', (! isConnectedWith(id)) );
+    let peerConnection = prepareNewConnection(id);
+    addConnection(id, peerConnection);
+
+    /*
+    peerConnection.createOffer()
+    .then(function (sessionDescription) {
+      console.log('createOffer() succsess in promise');
+      return peerConnection.setLocalDescription(sessionDescription);
+    }).then(function() {
+      console.log('setLocalDescription() succsess in promise');
+
+      // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+      sendSdp(id, peerConnection.localDescription);
+
+      // -- Vanilla ICE の場合には、まだSDPは送らない --
+    }).catch(function(err) {
+      console.error(err);
+    });
+    */
+
+    await peerConnection.setLocalDescription(await peerConnection.createOffer())
+    .catch(err => {
+      console.error('createOffer/setLocalDescription ERROR:', err)
+    });
+    console.log('setLocalDescription(offer) succsess in async');
+
+    // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+    sendSdp(id, peerConnection.localDescription);
+
+    // -- Vanilla ICE の場合には、まだSDPは送らない --    
+  }
+
+  async function setOffer(id, sessionDescription) {
+    _assert('setOffer must not connected yet', (! isConnectedWith(id)) );    
+    let peerConnection = prepareNewConnection(id);
+    addConnection(id, peerConnection);
+    
+    /*
+    peerConnection.setRemoteDescription(sessionDescription)
+    .then(function() {
+      console.log('setRemoteDescription(offer) succsess in promise');
+      makeAnswer(id);
+    }).catch(function(err) {
+      console.error('setRemoteDescription(offer) ERROR: ', err);
+    });
+    */
+
+    await peerConnection.setRemoteDescription(sessionDescription)
+    .catch(err => {
+      console.error('setRemoteDescription(offer) ERROR: ', err);
+    });
+
+    console.log('setRemoteDescription(offer) succsess in async');
+    makeAnswer(id);
+  }
+  
+  async function makeAnswer(id) {
+    console.log('sending Answer. Creating remote session description...' );
+    let peerConnection = getConnection(id);
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+    
+    /*
+    peerConnection.createAnswer()
+    .then(function (sessionDescription) {
+      console.log('createAnswer() succsess in promise');
+      return peerConnection.setLocalDescription(sessionDescription);
+    }).then(function() {
+      console.log('setLocalDescription() succsess in promise');
+
+      // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+      sendSdp(id, peerConnection.localDescription);
+
+      // -- Vanilla ICE の場合には、まだSDPは送らない --
+    }).catch(function(err) {
+      console.error(err);
+    });
+    */
+
+    await peerConnection.setLocalDescription(await peerConnection.createAnswer())
+    .catch(err => {
+      console.error('createAnswer/setLocalDescription ERROR:', err)
+    });
+    console.log('setLocalDescription(answer) succsess in async');
+
+    // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+    sendSdp(id, peerConnection.localDescription);
+
+    // -- Vanilla ICE の場合には、まだSDPは送らない --
+  }
+
+  async function setAnswer(id, sessionDescription) {
+    let peerConnection = getConnection(id);
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+
+    /*
+    peerConnection.setRemoteDescription(sessionDescription)
+    .then(function() {
+      console.log('setRemoteDescription(answer) succsess in promise');
+    }).catch(function(err) {
+      console.error('setRemoteDescription(answer) ERROR: ', err);
+    });
+    */
+
+    await peerConnection.setRemoteDescription(sessionDescription)
+    .catch(err => {
+      console.error('setRemoteDescription(answer) ERROR: ', err);
+    });
+
+    console.log('setRemoteDescription(answer) succsess in async');
+  }
+
+  // --- tricke ICE ---
+  function addIceCandidate(id, candidate) {
+    let peerConnection = getConnection(id);
+    if (peerConnection) {
+      peerConnection.addIceCandidate(candidate);
+    }
+    else {
+      console.error('PeerConnection not exist!');
+      return;
+    }
+  }
+  
+  // start PeerConnection
+  function connect() {
+    if (! isReadyToConnect()) {
+      console.warn('NOT READY to connect');
+    }
+    else if (! canConnectMore()) {
+      console.log('TOO MANY connections');
+    }
+    else {
+      callMe();
+    }
+  }
+
+  // close PeerConnection
+  function hangUp() {
+    emitRoom({ type: 'bye' });  
+    stopAllConnection();
+  }
+
+  // ---- multi party --
+  function callMe() {
+    emitRoom({type: 'call me'});
+  }
+
+
+</script>
+</html>
