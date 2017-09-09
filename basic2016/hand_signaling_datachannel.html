@@ -56,6 +56,7 @@
   // ----- hand signaling ----
   function onSdpText() {
     let text = textToReceiveSdp.value;
+    text = _trimTailDoubleLF(text); // for Safar TP --> Chrome
     if (peerConnection) {
       console.log('Received answer text...');
       let answer = new RTCSessionDescription({
@@ -80,6 +81,11 @@
     textForSendSdp.value = sessionDescription.sdp;
     textForSendSdp.focus();
     textForSendSdp.select();
+  }
+
+  function _trimTailDoubleLF(str) {
+    const trimed = str.trim();
+    return trimed + String.fromCharCode(13, 10);
   }
 
   // ---------------------- connection handling -----------------------
