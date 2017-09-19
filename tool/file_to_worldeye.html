@@ -1,0 +1,581 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>Files to worldeys</title>
+</head>
+<body>
+  <h4>Local Video/Audio files to stream</h4>
+  <div id="file_to_stream_box">
+    <input id="show_file_select_check" type="checkbox" checked="1" onchange="switchFileSelectBox()">Show File select UI</input><br />
+    <div id="file_select_box">
+      <div id="video_select_box" style="width:40%; display: inline-block;">
+        select local video file: <input id="selected_video_file" type="file" onchange="setSelectedVideoFile()"></input>
+        <div id="droped_video_file" style="height:50px; width:100%; border: 1px solid black; background-color: #EEEEEE; paddig:5px;　display: inline-block;">
+          &nbsp; or Drag&Drop Video file here:<br />
+          &nbsp;&nbsp; <span id="selected_video_filename"></span>
+        </div>
+        <video id="local_video" autoplay style="width: 321px; height: 181px; border: 1px solid black; margin-top:5px;"></video>&nbsp;&nbsp;
+      </div>
+
+      <div id="audio_select_box" style="width:40%;  display: inline-block; vertical-align: top;">
+        select local audio file: <input id="selected_audio_file" type="file" onchange="setSelectedAudioFile()"></input>
+        <div id="droped_audio_file" style="height:50px; width:100%; border: 1px solid black; background-color: #EEEEEE; paddig:5px; display: inline-block;">
+          &nbsp; or Drag&Drop Audio file here:<br/>
+          &nbsp;&nbsp; <span id="selected_audio_filename"></span>
+        </div>
+        <audio id="local_audio" autoplay controls="1" style="width: 280px; border: 1px solid black; margin-top:5px;"></audio>&nbsp;&nbsp;
+      </div>
+    </div>
+    <input id="range_fader" type="range" min="0" max="100" style="width: 300px;" value="0" step="2" oninput="rangeChange();" /><span id="fader_value" >0</span><br />
+    <br />
+    Convert file to stream: 
+    <button type="button" onclick="startConvert();">Start</button>
+    <button type="button" onclick="stopConvert();">Stop</button>
+    &nbsp; &nbsp;
+    <button type="button" onclick="fullscreenCanvas();">Full Screen</button>
+    <br />
+    <br />
+    Working Canvas size
+    <select id="canvas_select" onchange="setSelectedCanvasSize()">
+      <option value="Source Size">Source Size</option>
+      <option value="640x480">640x480</option>      
+      <option value="1280x720">1280x720</option>      
+      <option value="1920x1080">1920x1080</option>      
+      <option value="800x200">800x200</option>      
+    </select>
+    <!--
+    <input id="show_canvas_check" type="checkbox" checked="1" onchange="switchCanvas()">Show Canvas</input>
+    -->
+    &nbsp;
+    Working Canvas style<select id="canvas_display_select" onchange="setCanvasDisplay()">
+      <option value="visible">visibility:visible</option>
+      <option value="hidden">visibility:hidden</option>
+      <option value="none">display:none</option>
+    </select>
+    <br />
+    <canvas id="duplicate_canvas" width="640px" height="480px" style="border: 1px solid black;"></canvas><br />
+  </div>
+</body>
+<script type="text/javascript">
+  // --- prefix -----
+  MediaStream = window.MediaStream || window.webkitMediaStream || window.mozMediaStream;
+
+  // -- for local video file --
+  let selectedVideoFile = document.getElementById('selected_video_file');
+  let dropVideoDiv = document.getElementById('droped_video_file');
+  let selectedVideoFilenameSpan = document.getElementById('selected_video_filename');
+  dropVideoDiv.ondrop = onVideoFileDrop;
+  dropVideoDiv.ondragover = onVideoFileDragOver;
+  dropVideoDiv.ondragleave = onVideoFileLeave;
+  let localVideo = document.getElementById('local_video');
+  let videoFileToPlay = null;
+
+  // -- for local audio file ---
+  let selectedAudioFile = document.getElementById('selected_audio_file');
+  let dropAudioDiv = document.getElementById('droped_audio_file');
+  let selectedAudioFilenameSpan = document.getElementById('selected_audio_filename');
+  dropAudioDiv.ondrop = onAudioFileDrop;
+  dropAudioDiv.ondragover = onAudioFileDragOver;
+  dropAudioDiv.ondragleave = onAudioFileLeave;
+  let localAudio = document.getElementById('local_audio');
+  let audioFileToPlay = null;
+
+  //let monitorAudio = document.getElementById('monitor_audio');
+
+  // -- converted stream ---
+  //let monitorVideo = document.getElementById('monitor_video');
+  let convertedStream = null;
+  let fileSelectBox = document.getElementById('file_select_box');
+  let fileSelectBoxCheck = document.getElementById('show_file_select_check');
+
+
+  // -- video stream --
+  let duplicateCanvas = document.getElementById('duplicate_canvas');
+  let ctxDuplicate = duplicateCanvas.getContext('2d');
+  let animationId = null;
+  let duplicateStream = duplicateCanvas.captureStream(30);
+  let canvasSelect = document.getElementById('canvas_select');
+  let selectedCanvasSize = "Source Size";
+  let showCanvasCheck = document.getElementById('show_canvas_check');
+  let canvasDisplaySelect = document.getElementById('canvas_display_select');
+  
+
+  // --- audio -----
+  let audioContext = new AudioContext();
+  let audioSourceBuffer = null;
+  let audioSource = null;
+  let audioOutputNode = null;
+  let audioOutputSteram = null;
+
+  // --- fader ---
+  let rangeFader = document.getElementById('range_fader');
+  let spanFader = document.getElementById('fader_value');
+  let faderValue = 0;
+  function rangeChange() {
+    faderValue = rangeFader.value;
+    spanFader.innerHTML = faderValue;
+  }
+
+  function setRange(r) {
+    faderValue = r;
+    rangeFader.value = r;
+    spanFader.innerHTML = r;
+  }
+
+  // ---------------------- video handling ----------------------- 
+  function setSelectedVideoFile() {
+    if (selectedVideoFile.files.length == 0) {
+      console.warn('file not selected');
+      return;
+    }
+    stopVideo();
+
+    videoFileToPlay = selectedVideoFile.files[0];
+    console.log('selected file=' + videoFileToPlay.name);
+    selectedVideoFilenameSpan.innerHTML = videoFileToPlay.name;
+    startVideo();
+  }
+
+  function onVideoFileDrop(evt) {
+    //console.log('onFileDrop() evt:', evt);
+    console.log(evt.dataTransfer.files);
+    evt.stopPropagation();
+    evt.preventDefault();
+    dropVideoDiv.style.backgroundColor = '#EEEEEE'; 
+
+    if (evt.dataTransfer.files.length > 0) {
+      stopVideo();
+      videoFileToPlay = evt.dataTransfer.files[0];
+      console.log('dropped file=' + videoFileToPlay.name);
+      selectedVideoFilenameSpan.innerHTML = videoFileToPlay.name;
+      startVideo();
+    }    
+  }
+
+  function onVideoFileDragOver(evt) {
+    //console.log('onFileDragOver() evt:', evt);
+    evt.stopPropagation();
+    evt.preventDefault();　// <-- must to avoid open file in browser
+
+    dropVideoDiv.style.backgroundColor = '#F0E0E0'; 
+  }
+
+  function onVideoFileLeave(evt) {
+    //evt.stopPropagation();
+    //evt.preventDefault();
+    dropVideoDiv.style.backgroundColor = '#EEEEEE'; 
+  }
+
+  // start local video
+  function startVideo() {
+    //pauseVideo(monitorVideo);
+    pauseVideo(localVideo);
+
+    if (! videoFileToPlay) {
+      console.warn('file not selected');
+      return;
+    }
+
+    playVideo(localVideo, videoFileToPlay);
+    localVideo.loop = true;
+    localVideo.onloadedmetadata = function() {
+      console.log('localVide metadeta width=' + localVideo.videoWidth + ' , height=' + localVideo.videoHeight);
+      if (selectedCanvasSize === 'Source Size') {
+        duplicateCanvas.width = localVideo.videoWidth;
+        duplicateCanvas.height = localVideo.videoHeight;
+        //if (ctxDuplicate) {
+        //  ctxDuplicate = null;
+        //}
+        //ctxDuplicate = duplicateCanvas.getContext('2d');
+        ////playVideo(monitorVideo, duplicateStream);
+      }
+    }
+    //animationId = window.requestAnimationFrame(drawCanvas);
+  }
+
+  // stop local video
+  function stopVideo() {
+    pauseVideo(localVideo);
+ 
+    //if (animationId) {
+    //  window.cancelAnimationFrame(animationId);
+    //  animationId = null;
+    //}
+  }
+
+  function drawCanvas() {
+    //ctxDuplicate.drawImage(localVideo, 0, 0, localVideo.videoWidth, localVideo.videoHeight,
+    //  0, 0, duplicateCanvas.width , duplicateCanvas.height
+    //);
+
+    drawCanvasOffet(faderValue);
+
+    // animation frame will be drop down, when window is hidden.
+    animationId = window.requestAnimationFrame(drawCanvas);
+  }
+
+  function drawCanvasOffet(offsetRate) {
+    //console.log('drawCanvasOffet() offsetRate=' + offsetRate);
+    //ctxDuplicate.globalAlpha = 1;
+    const videoLeft1 = Math.round(offsetRate/100.0 * localVideo.videoWidth);
+    const videoWidth1 = Math.round(localVideo.videoWidth - videoLeft1);
+    const videoLeft2 = 0;
+    const videoWidth2 = videoLeft1;
+
+    const canvasLeft1 = 0; // Math.round(offsetRate/100.0  * duplicateCanvas.width);
+    const canvasWidth1 = Math.round((100.0 - offsetRate)/100.0 * duplicateCanvas.width);
+    const canvasLeft2 = canvasWidth1;
+    const canvasWidth2 = duplicateCanvas.width - canvasLeft2;
+     
+    if (canvasWidth1 > 0) {
+      ctxDuplicate.drawImage(localVideo, videoLeft1, 0, videoWidth1, localVideo.videoHeight,
+        canvasLeft1, 0, canvasWidth1 , duplicateCanvas.height
+      );
+    }
+
+    if (canvasWidth2 > 0) {
+      ctxDuplicate.drawImage(localVideo, videoLeft2, 0, videoWidth2, localVideo.videoHeight,
+        canvasLeft2, 0, canvasWidth2 , duplicateCanvas.height
+      );
+    }
+  }
+
+  //let lastMouseX = 0;
+  //let lastMouseY = 0;
+  let mouseCapture = false;
+  function setMouseHandler() {
+    duplicateCanvas.onmousedown = function(evt) {
+      console.log('mouse down x=' + evt.clientX + ', y=' + evt.clientY);
+
+      //lastMouseX = evt.clientX;
+      //lastMouseY = evt.clientY;
+      mouseCapture = true;
+
+      setOffsetRate(evt.clientX);
+    }
+
+    duplicateCanvas.onmousemove = function(evt) {
+      if (mouseCapture) {
+        //lastMouseX = evt.clientX;
+        //lastMouseY = evt.clientY;
+        setOffsetRate(evt.clientX);
+      }
+    }
+
+    duplicateCanvas.onmouseup = function(evt) {
+      mouseCapture = false;
+    }
+  }
+
+  function setOffsetRate(x) {
+    const rate = Math.round((x / duplicateCanvas.width) * 100.0);
+    setRange(rate);
+  }
+
+  function setSelectedCanvasSize() {
+    selectedCanvasSize = canvasSelect.options[canvasSelect.selectedIndex].value;
+    console.log('selected canvas size=' + selectedCanvasSize);
+    if (selectedCanvasSize === 'Source Size') {
+      if (localVideo.videoWidth && localVideo.videoHeight) {
+        // source size
+        duplicateCanvas.width = localVideo.videoWidth;
+        duplicateCanvas.height = localVideo.videoHeight
+      }
+    }
+    else if (selectedCanvasSize === '640x480') {
+      duplicateCanvas.width = 640;
+      duplicateCanvas.height = 480;
+    }
+    else if (selectedCanvasSize === '1280x720') {
+      duplicateCanvas.width = 1280;
+      duplicateCanvas.height = 720;
+    }
+    else if (selectedCanvasSize === "1920x1080") {
+      duplicateCanvas.width = 1920;
+      duplicateCanvas.height = 1080;
+    }
+    else if (selectedCanvasSize === "800x200") {
+      duplicateCanvas.width = 800;
+      duplicateCanvas.height = 200;
+    }
+    else {
+      duplicateCanvas.width = 640;
+      duplicateCanvas.height = 480;
+    }
+
+    console.log()
+  }
+
+  function fullscreenCanvas() {
+    duplicateCanvas.webkitRequestFullScreen();
+  }
+
+  // ---------------------- audio handling ----------------------- 
+  function setSelectedAudioFile() {
+    if (selectedAudioFile.files.length == 0) {
+      console.warn('file not selected');
+      return;
+    }
+
+    audioFileToPlay = selectedAudioFile.files[0];
+    console.log('selected file=' + audioFileToPlay.name);
+    selectedAudioFilenameSpan.innerHTML = audioFileToPlay.name;
+    startAudio();
+  }
+
+  function onAudioFileDrop(evt) {
+    //console.log('onFileDrop() evt:', evt);
+    console.log(evt.dataTransfer.files);
+    evt.stopPropagation();
+    evt.preventDefault();
+    dropAudioDiv.style.backgroundColor = '#EEEEEE'; 
+
+    if (evt.dataTransfer.files.length > 0) {
+      audioFileToPlay = evt.dataTransfer.files[0];
+      console.log('dropped file=' + audioFileToPlay.name);
+      selectedAudioFilenameSpan.innerHTML = audioFileToPlay.name;
+      startAudio();
+    }    
+  }
+
+  function onAudioFileDragOver(evt) {
+    //console.log('onFileDragOver() evt:', evt);
+    evt.stopPropagation();
+    evt.preventDefault();　// <-- must to avoid open file in browser
+
+    dropAudioDiv.style.backgroundColor = '#F0E0E0'; 
+  }
+
+  function onAudioFileLeave(evt) {
+    //evt.stopPropagation();
+    //evt.preventDefault();
+    dropAudioDiv.style.backgroundColor = '#EEEEEE'; 
+  }
+
+  // start local video
+  function startAudio() {
+    pauseAudio(localAudio);
+
+    if (! audioFileToPlay) {
+      console.warn('file not selected');
+      return;
+    }
+
+    playAudio(localAudio, audioFileToPlay);
+    localAudio.loop = true;
+    localAudio.onloadedmetadata = function() {
+      console.log('onloadedmetadata');
+    }
+
+    loadLocalAudio(audioFileToPlay);
+  }
+
+  // stop local video
+  function stopAudio() {
+    pauseAudio(localAudio);
+    stopAudioContext();
+  }
+  
+  function loadLocalAudio(file) {    
+    let reader = new FileReader;
+    reader.readAsArrayBuffer(file);
+    reader.onload = function(evt) {
+      console.log('reader.onload(), evt:', evt);
+      audioContext.decodeAudioData(reader.result, function(buffer) {
+        //playAudioContext(buffer);
+        audioSourceBuffer = buffer;
+      });
+    }
+    reader.onloadend = function(evt) {
+      console.log('reader.onloadend(), evt:', evt);
+    }
+    reader.onloadstart = function(evt) {
+      console.log('reader.onloadstart(), evt:', evt);
+    }
+  }
+
+  function startAudioStream() {
+    // source を作成
+    audioSource = audioContext.createBufferSource();
+    // buffer をセット
+    audioSource.buffer = audioSourceBuffer;
+    // context に connect
+    //audioSource.connect(audioContext.destination);
+
+    // Set parameters
+    audioSource.loop　= true;
+    //source.loopStart = 0;
+    //source.loopEnd = audioBuffer.duration;
+    //source.playbackRate.value = 2.0;
+
+
+    //audioSource.start(0);
+
+    // audioStream
+    audioOutputNode = audioContext.createMediaStreamDestination();
+	  audioOutputStream = audioOutputNode.stream;
+    audioSource.connect(audioOutputNode);
+
+    // 開始
+    audioSource.start(0);
+  }
+
+  function stopAudioStream() {
+    if (audioSource) {
+      audioSource.stop();
+      if (audioOutputStream) {
+        stopLocalStream(audioOutputStream);
+        audioOutputStream = null;
+      }
+      audioOutputNode = null;
+      audioSource = null;
+    }
+  }
+
+  // ---------- convert to stream ----
+  function startConvert() {
+    //pauseVideo(monitorVideo);
+
+    // mix video / audio
+    //convertedStream = new MediaStream();
+
+    if (videoFileToPlay) {
+      // -- convert video with canvas ---
+      if (ctxDuplicate) {
+        ctxDuplicate = null;
+      }
+      ctxDuplicate = duplicateCanvas.getContext('2d');
+      animationId = window.requestAnimationFrame(drawCanvas);
+
+      //convertedStream.addTrack(duplicateStream.getVideoTracks()[0]);
+
+      setMouseHandler();
+    }
+
+    //if (audioFileToPlay) {
+    //  startAudioStream();
+    //  convertedStream.addTrack(audioOutputStream.getAudioTracks()[0]);
+    //}
+
+    //playVideo(monitorVideo, convertedStream);
+    //monitorVideo.volume = 1.0;
+  }
+
+  function stopConvert() {
+    //pauseVideo(monitorVideo);
+
+    // stop stream
+    //if (convertedStream) {
+    //  //stopLocalStream(convertedStream);
+    //  convertedStream = null;
+    //}
+
+    // stop video convert
+    if (animationId) {
+      window.cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+
+    // stop audio convert
+    //stopAudioStream();
+  }
+
+  // --------------------------------------
+  function stopLocalStream(stream) {
+    if (!stream) {
+      return;
+    }
+    let tracks = stream.getTracks();
+    if (! tracks) {
+      console.warn('NO tracks');
+      return;
+    }
+    
+    for (let track of tracks) {
+      track.stop();
+    }
+  }
+
+
+
+  function playVideo(element, stream) {
+    //if ('srcObject' in element) {
+    //  element.srcObject = stream;
+    //}
+    //else {
+      element.src = window.URL.createObjectURL(stream);
+    //}
+    element.play();
+    element.volume = 0;
+  }
+
+  function pauseVideo(element) {
+    element.pause();
+    if ('srcObject' in element) {
+      element.srcObject = null;
+    }
+    else {
+      if (element.src && (element.src !== '') ) {
+        window.URL.revokeObjectURL(element.src);
+      }
+      element.src = '';
+    }
+  }
+
+  function playAudio(element, stream) {
+    element.src = window.URL.createObjectURL(stream);
+    element.play();
+    element.volume = 0;
+  }
+
+  function pauseAudio(element) {
+    if (element.src && (element.src !== '') ) {
+      window.URL.revokeObjectURL(element.src);
+    }
+    element.src = '';
+  }
+
+  function switchCanvas() {
+    if (showCanvasCheck.checked) {
+      console.log('showCanvas checked');
+      duplicateCanvas.style.display = 'block';
+      //duplicateCanvas.style.visibility = 'visible';
+    }
+    else {
+      console.log('showCanvas NOT-checked');
+      duplicateCanvas.style.display = 'none'; // NG on Chrome: canvas update will stop
+      //duplicateCanvas.style.visibility = 'hidden'; // OK on Chrome and Fifefox
+    }
+  }
+
+  function setCanvasDisplay() {
+    canvasDisplay = canvasDisplaySelect.options[canvasDisplaySelect.selectedIndex].value;
+    console.log('canvas display=' + canvasDisplay);
+    if (canvasDisplay === 'visible') {
+      duplicateCanvas.style.display = 'block';
+      duplicateCanvas.style.visibility = 'visible';
+    }
+    else if (canvasDisplay === 'hidden') {
+      duplicateCanvas.style.display = 'block';
+      duplicateCanvas.style.visibility = 'hidden';
+    }
+    else if (canvasDisplay === 'none') {
+      duplicateCanvas.style.display = 'none';
+    }
+  }
+
+  function switchFileSelectBox() {
+    if (fileSelectBoxCheck.checked) {
+      console.log('showCanvas checked');
+      fileSelectBox.style.display = 'block';
+      //fileSelectBox.style.visibility = 'visible';
+    }
+    else {
+      console.log('showCanvas NOT-checked');
+      fileSelectBox.style.display = 'none'; // OK
+      //fileSelectBox.style.visibility = 'hidden'; // OK
+    }
+  }
+</script>
+</html>
