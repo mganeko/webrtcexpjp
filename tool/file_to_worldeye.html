@@ -18,14 +18,16 @@
         <video id="local_video" autoplay style="width: 321px; height: 181px; border: 1px solid black; margin-top:5px;"></video>&nbsp;&nbsp;
       </div>
 
-      <div id="audio_select_box" style="width:40%;  display: inline-block; vertical-align: top;">
-        select local image file: <input id="selected_audio_file" type="file" onchange="setSelectedAudioFile()"></input>
-        <div id="droped_audio_file" style="height:50px; width:100%; border: 1px solid black; background-color: #EEEEEE; paddig:5px; display: inline-block;">
+      <div id="image_select_box" style="width:40%;  display: inline-block; vertical-align: top;">
+        select local image file: <input id="selected_image_file" type="file" onchange="setSelectedImageFile()"></input>
+        <div id="droped_image_file" style="height:50px; width:100%; border: 1px solid black; background-color: #EEEEEE; paddig:5px; display: inline-block;">
           &nbsp; or Drag&Drop Audio file here:<br/>
-          &nbsp;&nbsp; <span id="selected_audio_filename"></span>
+          &nbsp;&nbsp; <span id="selected_image_filename"></span>
         </div>
         <img id="local_image" style="width: 321px; height: 181px; border: 1px solid black; margin-top:5px;"></img>&nbsp;&nbsp;
+        <!--
         <audio id="local_audio" autoplay controls="1" style="width: 280px; border: 1px solid black; margin-top:5px;"></audio>&nbsp;&nbsp;
+        -->
       </div>
     </div>
     <input id="range_fader" type="range" min="0" max="100" style="width: 300px;" value="0" step="2" oninput="rangeChange();" /><span id="fader_value" >0</span><br />
@@ -73,22 +75,23 @@
   let videoFileToPlay = null;
 
   // -- for local audio file ---
-  let selectedAudioFile = document.getElementById('selected_audio_file');
-  let dropAudioDiv = document.getElementById('droped_audio_file');
-  let selectedAudioFilenameSpan = document.getElementById('selected_audio_filename');
-  dropAudioDiv.ondrop = onAudioFileDrop;
-  dropAudioDiv.ondragover = onAudioFileDragOver;
-  dropAudioDiv.ondragleave = onAudioFileLeave;
-  let localAudio = document.getElementById('local_audio');
-  let audioFileToPlay = null;
+  let selectedImageFile = document.getElementById('selected_image_file');
+  let dropImageDiv = document.getElementById('droped_image_file');
+  let selectedImageFilenameSpan = document.getElementById('selected_image_filename');
+  dropImageDiv.ondrop = onImageFileDrop;
+  dropImageDiv.ondragover = onImageFileDragOver;
+  dropImageDiv.ondragleave = onImageFileLeave;
+  let localImage = document.getElementById('local_image');
+  let imageFileToPlay = null;
 
   //let monitorAudio = document.getElementById('monitor_audio');
 
   // -- converted stream ---
   //let monitorVideo = document.getElementById('monitor_video');
-  let convertedStream = null;
+  //let convertedStream = null;
   let fileSelectBox = document.getElementById('file_select_box');
   let fileSelectBoxCheck = document.getElementById('show_file_select_check');
+  let selectFileType = ''; // 'video' or 'image'
 
 
   // -- video stream --
@@ -147,6 +150,7 @@
 
     if (evt.dataTransfer.files.length > 0) {
       stopVideo();
+
       videoFileToPlay = evt.dataTransfer.files[0];
       console.log('dropped file=' + videoFileToPlay.name);
       selectedVideoFilenameSpan.innerHTML = videoFileToPlay.name;
@@ -178,6 +182,7 @@
       return;
     }
 
+    selectFileType = 'video';
     playVideo(localVideo, videoFileToPlay);
     localVideo.loop = true;
     localVideo.onloadedmetadata = function() {
@@ -210,13 +215,18 @@
     //  0, 0, duplicateCanvas.width , duplicateCanvas.height
     //);
 
-    drawCanvasOffet(faderValue);
+    if (selectFileType === 'video') {
+      drawCanvasOffetVideo(faderValue);
+    }
+    else if (selectFileType === 'image') {
+      drawCanvasOffetImage(faderValue);
+    }
 
     // animation frame will be drop down, when window is hidden.
     animationId = window.requestAnimationFrame(drawCanvas);
   }
 
-  function drawCanvasOffet(offsetRate) {
+  function drawCanvasOffetVideo(offsetRate) {
     //console.log('drawCanvasOffet() offsetRate=' + offsetRate);
     //ctxDuplicate.globalAlpha = 1;
     const videoLeft1 = Math.round(offsetRate/100.0 * localVideo.videoWidth);
@@ -237,6 +247,32 @@
 
     if (canvasWidth2 > 0) {
       ctxDuplicate.drawImage(localVideo, videoLeft2, 0, videoWidth2, localVideo.videoHeight,
+        canvasLeft2, 0, canvasWidth2 , duplicateCanvas.height
+      );
+    }
+  }
+
+  function drawCanvasOffetImage(offsetRate) {
+    //console.log('drawCanvasOffet() offsetRate=' + offsetRate);
+    //ctxDuplicate.globalAlpha = 1;
+    const videoLeft1 = Math.round(offsetRate/100.0 * localImage.naturalWidth);
+    const videoWidth1 = Math.round(localImage.naturalWidth - videoLeft1);
+    const videoLeft2 = 0;
+    const videoWidth2 = videoLeft1;
+
+    const canvasLeft1 = 0; // Math.round(offsetRate/100.0  * duplicateCanvas.width);
+    const canvasWidth1 = Math.round((100.0 - offsetRate)/100.0 * duplicateCanvas.width);
+    const canvasLeft2 = canvasWidth1;
+    const canvasWidth2 = duplicateCanvas.width - canvasLeft2;
+     
+    if (canvasWidth1 > 0) {
+      ctxDuplicate.drawImage(localImage, videoLeft1, 0, videoWidth1, localImage.naturalHeight,
+        canvasLeft1, 0, canvasWidth1 , duplicateCanvas.height
+      );
+    }
+
+    if (canvasWidth2 > 0) {
+      ctxDuplicate.drawImage(localImage, videoLeft2, 0, videoWidth2, localImage.naturalHeight,
         canvasLeft2, 0, canvasWidth2 , duplicateCanvas.height
       );
     }
@@ -278,10 +314,19 @@
     selectedCanvasSize = canvasSelect.options[canvasSelect.selectedIndex].value;
     console.log('selected canvas size=' + selectedCanvasSize);
     if (selectedCanvasSize === 'Source Size') {
-      if (localVideo.videoWidth && localVideo.videoHeight) {
-        // source size
-        duplicateCanvas.width = localVideo.videoWidth;
-        duplicateCanvas.height = localVideo.videoHeight
+      if (selectFileType === 'video') {
+        if (localVideo.videoWidth && localVideo.videoHeight) {
+          // source size
+          duplicateCanvas.width = localVideo.videoWidth;
+          duplicateCanvas.height = localVideo.videoHeight;
+        }
+      }
+      else if (selectFileType === 'image') {
+        if (localImage.naturalWidth && localImage.naturalHeight) {
+          // source size
+          duplicateCanvas.width = localImage.naturalWidth;
+          duplicateCanvas.height = localImage.naturalHeight;
+        }
       }
     }
     else if (selectedCanvasSize === '640x480') {
@@ -313,65 +358,68 @@
   }
 
   // ---------------------- audio handling ----------------------- 
-  function setSelectedAudioFile() {
-    if (selectedAudioFile.files.length == 0) {
+  function setSelectedImageFile() {
+    if (selectedImageFile.files.length == 0) {
       console.warn('file not selected');
       return;
     }
 
-    audioFileToPlay = selectedAudioFile.files[0];
-    console.log('selected file=' + audioFileToPlay.name);
-    selectedAudioFilenameSpan.innerHTML = audioFileToPlay.name;
+    imageFileToPlay = selectedImageFile.files[0];
+    console.log('selected file=' + imageFileToPlay.name);
+    selectedImageFilenameSpan.innerHTML = imageFileToPlay.name;
     //startAudio();
 
-    //showImage();
+    showImage();
   }
 
-  function onAudioFileDrop(evt) {
+  function onImageFileDrop(evt) {
     //console.log('onFileDrop() evt:', evt);
     console.log(evt.dataTransfer.files);
     evt.stopPropagation();
     evt.preventDefault();
-    dropAudioDiv.style.backgroundColor = '#EEEEEE'; 
+    dropImageDiv.style.backgroundColor = '#EEEEEE'; 
 
     if (evt.dataTransfer.files.length > 0) {
-      audioFileToPlay = evt.dataTransfer.files[0];
-      console.log('dropped file=' + audioFileToPlay.name);
-      selectedAudioFilenameSpan.innerHTML = audioFileToPlay.name;
-      startAudio();
+      imageFileToPlay = evt.dataTransfer.files[0];
+      console.log('dropped file=' + imageFileToPlay.name);
+      selectedImageFilenameSpan.innerHTML = imageFileToPlay.name;
+      //startAudio();
+
+      showImage();
     }    
   }
 
-  function onAudioFileDragOver(evt) {
+  function onImageFileDragOver(evt) {
     //console.log('onFileDragOver() evt:', evt);
     evt.stopPropagation();
     evt.preventDefault();　// <-- must to avoid open file in browser
 
-    dropAudioDiv.style.backgroundColor = '#F0E0E0'; 
+    dropImageDiv.style.backgroundColor = '#F0E0E0'; 
   }
 
-  function onAudioFileLeave(evt) {
+  function onImageFileLeave(evt) {
     //evt.stopPropagation();
     //evt.preventDefault();
-    dropAudioDiv.style.backgroundColor = '#EEEEEE'; 
+    dropImageDiv.style.backgroundColor = '#EEEEEE'; 
   }
 
+  /* ---
   // start local video
   function startAudio() {
     //pauseAudio(localAudio);
 
-    if (! audioFileToPlay) {
+    if (! imageFileToPlay) {
       console.warn('file not selected');
       return;
     }
 
-    //playAudio(localAudio, audioFileToPlay);
+    //playAudio(localAudio, imageFileToPlay);
     //localAudio.loop = true;
     //localAudio.onloadedmetadata = function() {
     //  console.log('onloadedmetadata');
     //}
 
-    //loadLocalAudio(audioFileToPlay);
+    //loadLocalAudio(imageFileToPlay);
   }
 
   // stop local video
@@ -397,24 +445,27 @@
       console.log('reader.onloadstart(), evt:', evt);
     }
   }
+  ---*/
 
-  function loadLocalImage(file) {    
-    let reader = new FileReader;
-    reader.readAsArrayBuffer(file);
-    reader.onload = function(evt) {
-      console.log('reader.onload(), evt:', evt);
-      audioContext.decodeAudioData(reader.result, function(buffer) {
-        //playAudioContext(buffer);
-        audioSourceBuffer = buffer;
-      });
+  function showImage() {
+    if (! imageFileToPlay) {
+      console.warn('file not selected');
+      return;
     }
-    reader.onloadend = function(evt) {
-      console.log('reader.onloadend(), evt:', evt);
-    }
-    reader.onloadstart = function(evt) {
-      console.log('reader.onloadstart(), evt:', evt);
-    }
+
+    selectFileType = 'image';
+    localImage.onlaod = function () {
+      console.log('image onload()');
+      if (localImage.naturalWidth && localImage.naturalHeight) {
+        // source size
+        duplicateCanvas.width = localImage.naturalWidth;
+        duplicateCanvas.height = localImage.naturalHeight;  
+      }
+    };
+    localImage.src = window.URL.createObjectURL(imageFileToPlay);
   }
+
+  /* --
 
   function startAudioStream() {
     // source を作成
@@ -453,6 +504,7 @@
       audioSource = null;
     }
   }
+  --*/
 
   // ---------- convert to stream ----
   function startConvert() {
@@ -461,7 +513,9 @@
     // mix video / audio
     //convertedStream = new MediaStream();
 
-    if (videoFileToPlay) {
+    if (videoFileToPlay || imageFileToPlay) {
+      setSelectedCanvasSize();
+
       // -- convert video with canvas ---
       if (ctxDuplicate) {
         ctxDuplicate = null;
