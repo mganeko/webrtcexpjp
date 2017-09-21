@@ -15,7 +15,8 @@
     <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
     <video id="remote_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
   </div>
-  <p>SDP to send:<br />
+  <p>SDP to send:&nbsp;
+    <button type="button" onclick="copySdp();">copy localDP</button><br />
     <textarea id="text_for_send_sdp" rows="5" cols="60" readonly="readonly">SDP to send</textarea>
   </p>
   <p>SDP to receive:&nbsp;
@@ -141,6 +142,12 @@
     textForSendSdp.value = sessionDescription.sdp;
     textForSendSdp.focus();
     textForSendSdp.select();
+  }
+
+  function copySdp() {
+    textForSendSdp.focus();
+    textForSendSdp.select();
+    document.execCommand('copy');
   }
 
   function _trimTailDoubleLF(str) {
