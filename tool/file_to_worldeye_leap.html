@@ -144,8 +144,10 @@
         const velocity = hand.palmVelocity;
         const direction = hand.direction;
         const grab = hand.grabStrength;
-        console.log('--Leap frame: grab,  pos, velocity, direction=', grab, position[0], velocity[0], direction[0]);
-        trackLeap(grab, position[0], velocity[0], direction[0]);
+        const now = new Date();
+        const nowMilisec = now.getTime();
+        console.log('--Leap frame: milisec, grab,  pos, velocity, direction=', nowMilisec, grab, position[0], velocity[0], direction[0]);
+        trackLeap(nowMilisec, grab, position[0], velocity[0], direction[0]);
     }
   });
 
@@ -154,13 +156,15 @@
   let grabStartX = 0;
   let grabFaderStartPos = 0
   let grabLeap = false;
-  function trackLeap(grab, posx, velox, dirx) {
-    if (grab < 0.1) {
-      grabLeap = false;
-      return;
-    }
+  let lastMilisec = 0;
+  function trackLeap(milisec, grab, posx, velox, dirx) {
+    //if (grab < 0.1) {
+    //  grabLeap = false;
+    //  return;
+    //}
 
-    if (grab >= 0.3) {
+    //if (grab >= 0.3) {
+    if (grab >= 0.0) {
       if (! grabLeap) {
         // -- starg grab and trak --
         grabLeap = true;
@@ -169,9 +173,19 @@
         return;
       }
 
+      if (milisec - lastMilisec > 500) {
+        // -- re grab --
+        grabLeap = true;
+        grabStartX = posx;
+        grabFaderStartPos = Number(faderValue);
+        lastMilisec = milisec;
+        return;
+      } 
+
       // -- while tracking --
-      const trackWeight = -2.0;
+      const trackWeight = -4.0;
       const diffX = trackWeight * (posx - grabStartX); // to scroll with mouse direction
+      lastMilisec = milisec;
       setGrabeDelta(diffX);
     }
   }
