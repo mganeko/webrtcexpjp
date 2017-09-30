@@ -12,6 +12,15 @@ Qiitaの記事は[こちら](http://qiita.com/massie_g/items/5a6c4b69374d5997dc3
 
 * ローカルの映像/音声ファイルをメディアストリームに変換 [file_to_stream.html](/tool/file_to_stream.html])
 
+### WebRTCオッサン問題を超えて。ローカルファイルを自在に操りたい
+
+Qiitaの記事は[こちら](https://qiita.com/massie_g/items/0635a212f5860fe59047)
+
+* ローカルの映像/音声ファイルをメディアストリームに変換するとき、2つの映像を切り替えられるようにする [switch_to_stream.html](/tool/switch_to_stream.html])
+
+* ローカルの映像/音声ファイルを2種類切り替えながら表示する(VJ的なもの)。録画も可能 [switch_to_stream_rec.html](/tool/switch_to_stream_rec.html])
+
+
 ### ブラウザの BroadcastChannel を使ってシグナリング
 * BroadcastChannelを使ったシグナリングを行う多人数ビデオチャット [basic2016/multi_bc.html](/basic2016/multi_bc.html)
 
