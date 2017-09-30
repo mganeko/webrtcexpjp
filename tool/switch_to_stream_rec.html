@@ -52,11 +52,8 @@
     Convert file to stream: 
     <button type="button" onclick="startConvert();">Start</button>
     <button type="button" onclick="stopConvert();">Stop</button>
-    <!--
-    &nbsp;
-    <button type="button" onclick="connect();">Connect</button>
-    <button type="button" onclick="hangUp();">Hang Up</button>
-    -->
+    &nbsp; &nbsp;
+    <button type="button" onclick="fullscreenCanvas();">Full Screen</button>
     <br />
     Working Canvas size
     <select id="canvas_select" onchange="setSelectedCanvasSize()">
@@ -77,7 +74,13 @@
     </select>
     <br />
     <canvas id="duplicate_canvas" width="640px" height="480px" style="border: 1px solid black;"></canvas><br />
+    <button onclick="startRecording()">Start Recording</button>
+    <button onclick="stopRecording()">Stop Recording</button>
+    <a href="#" id="downloadlink">Download</a>
+    <br />
     <video id="monitor_video" autoplay controls="1" style="width: 320px; height: 240px; border: 1px solid black;"></video>
+    <video id="playback_video" autoplay style="width: 320px; height: 240px; border: 1px solid black;"></video>
+    
   </div>
 </body>
 <script type="text/javascript">
@@ -170,13 +173,22 @@
   let audioGain2 = null;
 
   // --- fader ---
+  const FADER_MAX = 100;
   let rangeFader = document.getElementById('range_fader');
   let spanFader = document.getElementById('fader_value');
   let faderValue = 0;
+  rangeFader.max = FADER_MAX;
   function rangeChange() {
     faderValue = rangeFader.value;
     spanFader.innerHTML = faderValue;
 
+    setAudioGain(faderValue);
+  }
+
+  function setRange(r) {
+    faderValue = r;
+    rangeFader.value = r;
+    spanFader.innerHTML = r;
     setAudioGain(faderValue);
   }
 
@@ -736,6 +748,9 @@
     syncStart();
     playVideo(monitorVideo, convertedStream);
     monitorVideo.volume = 1.0;
+
+    setMouseHandler();
+    setKeyHandler();
   }
 
   function syncStart() {
@@ -877,6 +892,171 @@
       //fileSelectBox.style.visibility = 'hidden'; // OK
     }
   }
+
+  // ------ mouse drag ---
+  let dragStartX = 0;
+  let faderStartPos = 0
+  let mouseCapture = false;
+  function setMouseHandler() {
+    duplicateCanvas.onmousedown = function(evt) {
+      console.log('mouse down x=' + evt.clientX + ', y=' + evt.clientY);
+
+      //lastMouseX = evt.clientX;
+      //lastMouseY = evt.clientY;
+
+      dragStartX = evt.clientX;
+      faderStartPos = Number(faderValue);
+
+      mouseCapture = true;
+
+      //setOffsetRate(evt.clientX);
+    }
+
+    duplicateCanvas.onmousemove = function(evt) {
+      if (mouseCapture) {
+        //lastMouseX = evt.clientX;
+        //lastMouseY = evt.clientY;
+
+        const diffX = - (evt.clientX - dragStartX); // to scroll with mouse direction
+        setOffsetRateDelta(diffX);
+      }
+    }
+
+    duplicateCanvas.onmouseup = function(evt) {
+      mouseCapture = false;
+    }
+  }
+
+  function setOffsetRate(x) {
+    const rate = Math.round((x / duplicateCanvas.width) * FADER_MAX);
+    setRange(rate);
+  }
+
+  function setOffsetRateDelta(x) {
+    const rateDelta = Math.round((x / duplicateCanvas.width * 1.1) * FADER_MAX);
+    let newRate = faderStartPos + rateDelta;
+    if (newRate < 0) {
+      //newRate = newRate + FADER_MAX;
+      newRate = 0;
+    }
+    else if (newRate >= FADER_MAX) {
+      //newRate = newRate - FADER_MAX;
+      newRate = FADER_MAX;
+    }
+
+    setRange(newRate);
+  }
+
+  function fullscreenCanvas() {
+    duplicateCanvas.webkitRequestFullScreen();
+  }
+
+  function setKeyHandler() {
+    document.onkeydown = function(evt) {
+      if (evt.key === '1') {
+        faderSelect.options[0].selected = true;
+        setSelectedFaderType();
+      }
+      else if (evt.key === '2') {
+        faderSelect.options[1].selected = true;
+        setSelectedFaderType();
+      }
+      else if (evt.key === '3') {
+        faderSelect.options[2].selected = true;
+        setSelectedFaderType();
+      }
+    }
+  }
+
+  // ==== (2) 録画の準備 ====
+  // --- recording ---
+  let recorder =  null;
+  let blobUrl = null;
+  let chunks = [];
+  const playbackVideo =  document.getElementById('playback_video');
+  // ==== (2) 録画の準備 ====
+  // ==== (3) ダウンロードの準備 ====
+  const anchor = document.getElementById('downloadlink');
+  // ==== (3) ダウンロードの準備 ====
+
+  // ==== (2) 録画 ====
+  // -- 録画開始 --
+  function startRecording() {
+    // チェック
+    if (! convertedStream) {
+      console.warn('stream not ready');
+      return;      
+    }
+    if (recorder) {
+      console.warn('already recording');
+      return;
+    }
+    recorder = new MediaRecorder(convertedStream);
+    /* -- option を使う場合のサンプル --
+    const options = {
+      audioBitsPerSecond : 64000,
+      videoBitsPerSecond : 512000,
+      mimeType : 'video/webm; codecs=vp9'
+    };
+    recorder = new MediaRecorder(mixStream, options);    
+    -- option を使う場合のサンプル ---*/
+    
+    chunks = []; // 格納場所をクリア
+    
+    // 録画進行中に、インターバルに合わせて発生するイベント
+    recorder.ondataavailable = function(evt) {
+      console.log("data available: evt.data.type=" + evt.data.type + " size=" + evt.data.size);
+      chunks.push(evt.data);
+    };
+    
+    // 録画停止時のイベント
+    recorder.onstop = function(evt) {
+      console.log('recorder.onstop(), so playback');
+      recorder = null;
+      playRecorded();
+    };
+    // 録画スタート
+    recorder.start(1000); // インターバルは1000ms
+    console.log('start recording');
+  }
+  // -- 録画停止 -- 
+  function stopRecording() {
+    if (recorder) {
+      recorder.stop();
+      console.log("stop recording");
+    }
+  }
+  // -- 再生 --
+  function playRecorded() {
+    if (! blobUrl) {
+      window.URL.revokeObjectURL(blobUrl);
+      blobUrl = null;
+    }
+    // Blob
+    const videoBlob = new Blob(chunks, { type: "video/webm" });
+    
+    // 再生できるようにURLを生成
+    blobUrl = window.URL.createObjectURL(videoBlob);
+    
+    // ==== (3) ダウンロード ====
+    // ダウンロードの準備
+    anchor.download = 'recorded.webm';
+    anchor.href = blobUrl;
+    // ==== (3) ダウンロード ====
+    // 録画した内容を再生
+    if (blobUrl) {
+      playbackVideo.src = blobUrl;
+      
+      // 再生終了時の処理
+      playbackVideo.onended = function() {
+        playbackVideo.pause();
+        playbackVideo.src = "";
+      };
+      // 再生開始
+      playbackVideo.play();
+    }
+  }
+  // ==== (2) 録画 ====
 
 
 </script>
