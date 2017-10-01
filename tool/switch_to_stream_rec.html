@@ -582,6 +582,7 @@
 	    audioOutputStream = audioOutputNode.stream;
     }
     audioGain.connect(audioOutputNode);
+    audioGain.connect(audioContext.destination);
 
     // 開始
     //audioSource.start(0);
@@ -608,6 +609,7 @@
 	    audioOutputStream = audioOutputNode.stream;
     }
     audioGain2.connect(audioOutputNode);
+    audioGain2.connect(audioContext.destination);
 
     // 開始
     //audioSource2.start(0);
@@ -747,7 +749,8 @@
 
     syncStart();
     playVideo(monitorVideo, convertedStream);
-    monitorVideo.volume = 1.0;
+    //monitorVideo.volume = 1.0;
+    monitorVideo.volume = 0.0;
 
     setMouseHandler();
     setKeyHandler();
