@@ -37,6 +37,8 @@
     <button type="button" onclick="startConvert();">Start</button>
     <button type="button" onclick="stopConvert();">Stop</button>
     &nbsp; &nbsp;
+    <input type="checkbox" id="use_leap_check" checked="1" onchange="useLeapChange()">Use Leap Motion</input>
+    &nbsp;
     <button type="button" onclick="fullscreenCanvas();">Full Screen</button>
     <br />
     <br />
@@ -136,6 +138,19 @@
   // Y: -down +up
   // Z: -push +pull
 
+  const useLeapCheck = document.getElementById('use_leap_check');
+  let useLeap = false;
+  function useLeapChange() {
+    if (useLeapCheck.checked) {
+      useLeap = true;
+      console.log('useLeap ON');
+    }
+    else {
+      useLeap = false;
+      console.log('useLeap off');
+    }
+  }
+
   let controller = Leap.loop(function(frame){
     if(frame.hands.length > 0)
     {
@@ -147,7 +162,9 @@
         const now = new Date();
         const nowMilisec = now.getTime();
         console.log('--Leap frame: milisec, grab,  pos, velocity, direction=', nowMilisec, grab, position[0], velocity[0], direction[0]);
-        trackLeap(nowMilisec, grab, position[0], velocity[0], direction[0]);
+        if (useLeap) {
+          trackLeap(nowMilisec, grab, position[0], velocity[0], direction[0]);
+        }
     }
   });
 
