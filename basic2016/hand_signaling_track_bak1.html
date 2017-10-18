@@ -5,11 +5,9 @@
  <title>Hand Signaling</title>
 </head>
 <body>
-  Hand Signaling 2017<br />
-  <input type="checkbox" id="use_video" checked="1">use Video</input>
-  <input type="checkbox" id="use_audio" checked="1">use Audio</input>
-  <button type="button" onclick="startVideo();">Start Media</button>
-  <button type="button" onclick="stopVideo();">Stop Media</button>
+  Hand Signaling 2016<br />
+  <button type="button" onclick="startVideo();">Start Video</button>
+  <button type="button" onclick="stopVideo();">Stop Video</button>
   &nbsp;
   <button type="button" onclick="connect();">Connect</button>
   <button type="button" onclick="hangUp();">Hang Up</button> 
@@ -18,7 +16,7 @@
     <video id="remote_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
   </div>
   <p>SDP to send:&nbsp;
-    <button type="button" onclick="copySdp();">copy local SDP</button><br />
+    <button type="button" onclick="copySdp();">copy localDP</button><br />
     <textarea id="text_for_send_sdp" rows="5" cols="60" readonly="readonly">SDP to send</textarea>
   </p>
   <p>SDP to receive:&nbsp;
@@ -41,29 +39,10 @@
   RTCSessionDescription = window.RTCSessionDescription || window.webkitRTCSessionDescription || window.mozRTCSessionDescription;
 
   // ---------------------- media handling ----------------------- 
-
-  function isUseVideo() {
-    let useVideo = document.getElementById('use_video').checked;
-    return useVideo;
-  }
-
-  function isUseAudio() {
-    let useAudio = document.getElementById('use_audio').checked;
-    return useAudio;
-  }
-
   // start local video
   function startVideo() {
-    let useVideo = isUseVideo();
-    let useAudio = isUseAudio();
-    if ( (! useVideo) && (! useAudio) ) {
-      console.warn('NO media to capture');
-      return;
-    }
-
-    getDeviceStream({video: useVideo, audio: useAudio}) // audio: false
+    getDeviceStream({video: true, audio: true}) // audio: false
     .then(function (stream) { // success
-      logStream('localStream', stream);
       localStream = stream;
       playVideo(localVideo, stream);
     }).catch(function (error) { // error
@@ -89,29 +68,7 @@
       track.stop();
     }
   }
-
-  function logStream(msg, stream) {
-    console.log(msg + ': id=' + stream.id);
-
-    var videoTracks = stream.getVideoTracks();
-    if (videoTracks) {
-      console.log('videoTracks.length=' + videoTracks.length);
-      for (var i = 0; i < videoTracks.length; i++) {
-        var track = videoTracks[i];
-        console.log('track.id=' + track.id);
-      }
-    }
-
-    var audioTracks = stream.getAudioTracks();
-    if (audioTracks) {
-      console.log('audioTracks.length=' + audioTracks.length);
-      for (var i = 0; i < audioTracks.length; i++) {
-        var track = audioTracks[i];
-        console.log('track.id=' + track.id);
-      }
-    }
-  }
-
+  
   function getDeviceStream(option) {
     if ('getUserMedia' in navigator.mediaDevices) {
       console.log('navigator.mediaDevices.getUserMadia');
@@ -263,19 +220,7 @@
 
   function makeOffer() {
     peerConnection = prepareNewConnection();
-
-    let options = {};
-    if (! localStream) {
-      options = { offerToReceiveAudio: true, offerToReceiveVideo: true };
-
-      if ('addTransceiver' in peerConnection) {
-        console.log('-- use addTransceiver() for recvonly --');
-        peerConnection.addTransceiver('video').setDirection('recvonly');
-        peerConnection.addTransceiver('audio').setDirection('recvonly');
-      }
-    }
-
-    peerConnection.createOffer(options)
+    peerConnection.createOffer()
     .then(function (sessionDescription) {
       console.log('createOffer() succsess in promise');
       return peerConnection.setLocalDescription(sessionDescription);
@@ -310,19 +255,8 @@
       console.error('peerConnection NOT exist!');
       return;
     }
-
-    let options = {};
-    if (! localStream) {
-      options = { offerToReceiveAudio: true, offerToReceiveVideo: true }
-
-      if ('addTransceiver' in peerConnection) {
-        console.log('-- use addTransceiver() for recvonly --');
-        peerConnection.addTransceiver('video').setDirection('recvonly');
-        peerConnection.addTransceiver('audio').setDirection('recvonly');
-      }
-    }
-
-    peerConnection.createAnswer(options)
+    
+    peerConnection.createAnswer()
     .then(function (sessionDescription) {
       console.log('createAnswer() succsess in promise');
       return peerConnection.setLocalDescription(sessionDescription);
