@@ -11,6 +11,7 @@
   <button type="button" onclick="startVideo();">Start Media</button>
   <button type="button" onclick="stopVideo();">Stop Media</button>
   &nbsp;
+  <input type="checkbox" id="send_only">send only</input>
   <button type="button" onclick="connect();">Connect</button>
   <button type="button" onclick="hangUp();">Hang Up</button> 
   <div>
@@ -50,6 +51,11 @@
   function isUseAudio() {
     let useAudio = document.getElementById('use_audio').checked;
     return useAudio;
+  }
+
+  function isSendOnly() {
+    let sendOnly = document.getElementById('send_only').checked;
+    return sendOnly;
   }
 
   // start local video
@@ -265,7 +271,16 @@
     peerConnection = prepareNewConnection();
 
     let options = {};
-    if (! localStream) {
+    if (localStream) {
+      if (isSendOnly()) {
+        console.log('-- try sendonly ---');
+        options = { offerToReceiveAudio: false, offerToReceiveVideo: false };
+      }
+    }
+    else {
+      // -- no localStream, so receive --
+      console.log('-- try recvonly ---');
+
       options = { offerToReceiveAudio: true, offerToReceiveVideo: true };
 
       if ('addTransceiver' in peerConnection) {
@@ -313,7 +328,7 @@
 
     let options = {};
     if (! localStream) {
-      options = { offerToReceiveAudio: true, offerToReceiveVideo: true }
+      //options = { offerToReceiveAudio: true, offerToReceiveVideo: true }
 
       if ('addTransceiver' in peerConnection) {
         console.log('-- use addTransceiver() for recvonly --');
