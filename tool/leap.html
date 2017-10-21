@@ -1,0 +1,300 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>leap</title>
+ <script src="https://js.leapmotion.com/leap-0.6.3.js"></script>
+</head>
+<body>
+  <h4>test leap motion</h4>
+  <a href="https://gallery.leapmotion.com/category/javascript/" target="_blank">Other Demo for Leap Motions</a><br />
+  <!--
+  <input type="checkbox" id="use_leap_check" checked="1" onchange="useLeapChange()">Use Leap Motion</input>
+  -->
+  <!--
+  <input id="range_fader" type="range" min="0" max="100" style="width: 300px;" value="0" step="2" oninput="rangeChange();" /><span id="fader_value" >0</span><br /> 
+  -->
+  <br />
+  Left<br />
+  x<input id="left_x_fader" type="range" min="-200" max="200" style="width: 300px;" value="0" step="2" oninput="" /><span id="left_x_fader_value" >0</span><br />
+  y<input id="left_y_fader" type="range" min="-200" max="200" style="width: 300px;" value="0" step="2" oninput="" /><span id="left_y_fader_value" >0</span><br />
+  z<input id="left_z_fader" type="range" min="-200" max="200" style="width: 300px;" value="0" step="2" oninput="" /><span id="left_z_fader_value" >0</span><br />
+  roll<input id="left_roll_fader" type="range" min="-200" max="200" style="width: 300px;" value="0" step="2" oninput="" /><span id="left_roll_fader_value" >0</span><br />
+  grab<input id="left_grab_fader" type="range" min="-200" max="200" style="width: 300px;" value="0" step="2" oninput="" /><span id="left_grab_fader_value" >0</span><br />
+  <br />
+  right<br />
+  x<input id="right_x_fader" type="range" min="-200" max="200" style="width: 300px;" value="0" step="2" oninput="" /><span id="right_x_fader_value" >0</span><br />
+  y<input id="right_y_fader" type="range" min="-200" max="200" style="width: 300px;" value="0" step="2" oninput="" /><span id="right_y_fader_value" >0</span><br />
+  z<input id="right_z_fader" type="range" min="-200" max="200" style="width: 300px;" value="0" step="2" oninput="" /><span id="right_z_fader_value" >0</span><br />
+  roll<input id="right_roll_fader" type="range" min="-200" max="200" style="width: 300px;" value="0" step="2" oninput="" /><span id="right_roll_fader_value" >0</span><br />
+  grab<input id="right_grab_fader" type="range" min="-200" max="200" style="width: 300px;" value="0" step="2" oninput="" /><span id="right_grab_fader_value" >0</span><br />
+  <br />
+  <!--
+  <canvas id="duplicate_canvas" width="640px" height="480px" style="border: 1px solid black;"></canvas><br />
+  -->
+</body>
+<script type="text/javascript">
+  /*
+  let duplicateCanvas = document.getElementById('duplicate_canvas');
+  let ctxDuplicate = duplicateCanvas.getContext('2d');
+  let animationId = null;
+  */
+
+  // --- fader ---
+  const FADER_MAX = 100;
+  let rangeFader = document.getElementById('range_fader');
+  let spanFader = document.getElementById('fader_value');
+  let faderValue = 0;
+  //rangeFader.max = FADER_MAX;
+  function rangeChange() {
+    faderValue = rangeFader.value;
+    spanFader.innerHTML = faderValue;
+
+    //setAudioGain(faderValue);
+  }
+
+  function setRange(r) {
+    faderValue = r;
+    //rangeFader.value = r;
+    //spanFader.innerHTML = r;
+    //setAudioGain(faderValue);
+  }
+
+  let faders = [];
+  let faderValues = [];
+  faders['left_x'] = document.getElementById('left_x_fader');
+  faders['left_y'] = document.getElementById('left_y_fader');
+  faders['left_z'] = document.getElementById('left_z_fader');
+  faders['left_roll'] = document.getElementById('left_roll_fader');
+  faders['left_grab'] = document.getElementById('left_grab_fader');
+  faders['right_x'] = document.getElementById('right_x_fader');
+  faders['right_y'] = document.getElementById('right_y_fader');
+  faders['right_z'] = document.getElementById('right_z_fader');
+  faders['right_roll'] = document.getElementById('right_roll_fader');
+  faders['right_grab'] = document.getElementById('right_grab_fader');
+  faderValues['left_x'] = document.getElementById('left_x_fader_value');
+  faderValues['left_y'] = document.getElementById('left_y_fader_value');
+  faderValues['left_z'] = document.getElementById('left_z_fader_value');
+  faderValues['left_roll'] = document.getElementById('left_roll_fader_value');
+  faderValues['left_grab'] = document.getElementById('left_grab_fader_value');
+  faderValues['right_x'] = document.getElementById('right_x_fader_value');
+  faderValues['right_y'] = document.getElementById('right_y_fader_value');
+  faderValues['right_z'] = document.getElementById('right_z_fader_value');
+  faderValues['right_roll'] = document.getElementById('right_roll_fader_value');
+  faderValues['right_grab'] = document.getElementById('right_grab_fader_value');
+
+  function setFader(type, v) {
+    //const v = Number(faderValue)
+    const n = Math.floor(v);
+    const fader = faders[type];
+    fader.value = n;
+
+    const faderValue = faderValues[type];
+    faderValue.innerHTML = n;
+  }
+
+  // ------ mouse drag ---
+  let dragStartX = 0;
+  let faderStartPos = 0
+  let mouseCapture = false;
+  function setMouseHandler() {
+    duplicateCanvas.onmousedown = function(evt) {
+      console.log('mouse down x=' + evt.clientX + ', y=' + evt.clientY);
+
+      //lastMouseX = evt.clientX;
+      //lastMouseY = evt.clientY;
+
+      dragStartX = evt.clientX;
+      faderStartPos = Number(faderValue);
+
+      mouseCapture = true;
+
+      setOffsetRate(evt.clientX);
+    }
+
+    duplicateCanvas.onmousemove = function(evt) {
+      if (mouseCapture) {
+        //lastMouseX = evt.clientX;
+        //lastMouseY = evt.clientY;
+
+        const diffX = - (evt.clientX - dragStartX); // to scroll with mouse direction
+        setOffsetRateDelta(diffX);
+      }
+    }
+
+    duplicateCanvas.onmouseup = function(evt) {
+      mouseCapture = false;
+    }
+  }
+
+  function setOffsetRate(x) {
+    const rate = Math.round((x / duplicateCanvas.width) * FADER_MAX);
+    //setRange(rate);
+  }
+
+  function setOffsetRateDelta(x) {
+    const rateDelta = Math.round((x / duplicateCanvas.width * 1.1) * FADER_MAX);
+    let newRate = faderStartPos + rateDelta;
+    if (newRate < 0) {
+      //newRate = newRate + FADER_MAX;
+      newRate = 0;
+    }
+    else if (newRate >= FADER_MAX) {
+      //newRate = newRate - FADER_MAX;
+      newRate = FADER_MAX;
+    }
+
+    setRange(newRate);
+  }
+
+  function fullscreenCanvas() {
+    duplicateCanvas.webkitRequestFullScreen();
+  }
+
+  function setKeyHandler() {
+    document.onkeydown = function(evt) {
+      if (evt.key === '1') {
+        //faderSelect.options[0].selected = true;
+        //setSelectedFaderType();
+      }
+      else if (evt.key === '2') {
+        //faderSelect.options[1].selected = true;
+        //setSelectedFaderType();
+      }
+      else if (evt.key === '3') {
+        //faderSelect.options[2].selected = true;
+        //setSelectedFaderType();
+      }
+    }
+  }
+
+  // https://developer.leapmotion.com/documentation/javascript/devguide/Leap_Guides2.html
+  // ======== LEAP MOTION =============
+  // X: -left +righ
+  // Y: -down +up
+  // Z: -push +pull
+
+  /*
+  const useLeapCheck = document.getElementById('use_leap_check');
+  let useLeap = true;
+  function useLeapChange() {
+    if (useLeapCheck.checked) {
+      useLeap = true;
+      console.log('useLeap ON');
+    }
+    else {
+      useLeap = false;
+      console.log('useLeap off');
+    }
+  }
+  */
+
+  let controller = Leap.loop(function(frame){
+    //console.log('hands = ' + frame.hands.length);
+
+    for (let hand of frame.hands)
+    {
+      if (hand.type === 'left') {
+        showLeftHand(hand);
+      }
+      else if (hand.type === 'right') {
+        showRightHand(hand);
+      }
+      else {
+        console.warn('unknown hand type');
+      }
+    }
+  });
+
+  function showLeftHand(hand) {
+    const position = hand.palmPosition;
+    const x = position[0];
+    const y = position[1];
+    const z = position[2];
+
+    setFader('left_x', x);
+    setFader('left_y', y);
+    setFader('left_z', z);
+
+    //console.log('left-angle: ', hand.pitch(), hand.roll(), hand.yaw())
+    const roll = Math.floor(hand.roll() / Math.PI * 180);
+    setFader('left_roll', roll);
+
+    const grab = Math.floor(hand.grabStrength*100);
+    setFader('left_grab', grab);
+  }
+
+  function showRightHand(hand) {
+    const position = hand.palmPosition;
+    const x = position[0];
+    const y = position[1];
+    const z = position[2];
+
+    setFader('right_x', x);
+    setFader('right_y', y);
+    setFader('right_z', z);
+
+    const roll = Math.floor(hand.roll() / Math.PI * 180);
+    setFader('right_roll', roll);
+
+    const grab = Math.floor(hand.grabStrength*100);
+    setFader('right_grab', grab);
+  }
+
+
+  //let lastMouseX = 0;
+  //let lastMouseY = 0;
+  let grabStartX = 0;
+  let grabFaderStartPos = 0
+  let grabLeap = false;
+  let lastMilisec = 0;
+  function trackLeap(milisec, grab, posx, velox, dirx) {
+    //if (grab < 0.1) {
+    //  grabLeap = false;
+    //  return;
+    //}
+
+    //if (grab >= 0.3) {
+    if (grab >= 0.0) {
+      if (! grabLeap) {
+        // -- starg grab and trak --
+        grabLeap = true;
+        grabStartX = posx;
+        grabFaderStartPos = Number(faderValue);
+        return;
+      }
+
+      if (milisec - lastMilisec > 500) {
+        // -- re grab --
+        grabLeap = true;
+        grabStartX = posx;
+        grabFaderStartPos = Number(faderValue);
+        lastMilisec = milisec;
+        return;
+      } 
+
+      // -- while tracking --
+      const trackWeight = -4.0;
+      const diffX = trackWeight * (posx - grabStartX); // to scroll with mouse direction
+      lastMilisec = milisec;
+      setGrabeDelta(diffX);
+    }
+  }
+
+  function setGrabeDelta(x) {
+    const rateDelta = Math.round((x / duplicateCanvas.width) * FADER_MAX);
+    let newRate = grabFaderStartPos + rateDelta;
+    if (newRate < 0) {
+      newRate = 0;
+    }
+    else if (newRate >= FADER_MAX) {
+      newRate = FADER_MAX;
+    }
+
+    setRange(newRate);
+  }
+
+
+
+</script>
+</html>
