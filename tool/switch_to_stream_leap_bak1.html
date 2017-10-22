@@ -202,18 +202,6 @@
     console.log('selected faderType=' + faderType);
   }
 
-  function nextSelectedFaderType() {
-    let currentIndex = faderSelect.selectedIndex;
-    let nextIndex = currentIndex + 1;
-    if (nextIndex >= faderSelect.options.length) {
-      nextIndex = 0;
-    }
-    console.log('selected type index=' + nextIndex)
-
-    faderSelect.options[nextIndex].selected = true;
-    setSelectedFaderType();
-  }
-
   // ---------------------- video handling ----------------------- 
   function setSelectedVideoFile() {
     if (selectedVideoFile.files.length == 0) {
@@ -1105,12 +1093,9 @@
         const grab = hand.grabStrength;
         const now = new Date();
         const nowMilisec = now.getTime();
-        //console.log('--Leap frame: milisec, grab,  posY, posX, velocity, direction=', nowMilisec, grab, position[1], position[0], velocity[0], direction[0]);
-        console.log('--Leap frame: milisec, posY', nowMilisec, position[1]);
+        console.log('--Leap frame: milisec, grab,  pos, velocity, direction=', nowMilisec, grab, position[0], velocity[0], direction[0]);
         if (useLeap) {
           trackLeap(nowMilisec, grab, position[0] * 1.1, velocity[0], direction[0]);
-
-          handleChangeType(position[1]);
         }
     }
   });
@@ -1121,7 +1106,6 @@
   let grabFaderStartPos = 0
   let grabLeap = false;
   let lastMilisec = 0;
-
   function trackLeap(milisec, grab, posx, velox, dirx) {
     //if (grab < 0.1) {
     //  grabLeap = false;
@@ -1168,20 +1152,6 @@
     setRange(newRate);
   }
 
-  let changeTypeGesture = false;
-  function handleChangeType(y) {
-    if (changeTypeGesture) {
-      if (y > 150) {
-        changeTypeGesture = false;
-      }
-    }
-    else {
-      if (y < 100) {
-        changeTypeGesture = true;
-        nextSelectedFaderType();
-      }
-    }
-  }
 
 
 </script>
