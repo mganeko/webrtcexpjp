@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>Camera with mediaDevice</title>
+</head>
+<body>
+  Camera with mediaDevice.getUserMedia() <br />
+  <button onclick="getDevice()">Get Devices</button>
+  <select id="videoSource"></select>
+  <select id="audioSource"></select>
+  <button onclick="startVideo()">Start</button>
+  <button onclick="stopVideo()">Stop</button>
+  <br />
+  <video id="local_video" autoplay style="width: 320px; height: 240px; border: 1px solid black;"></video>
+</body>
+<script type="text/javascript">
+  let localVideo = document.getElementById('local_video');
+  let localStream;
+  
+  // start local video
+  function startVideo() {
+    let mediaConstraints = {video: true, audio: false};
+    const audioSource = audioSelect.value;
+    const videoSource = videoSelect.value;
+    if (videoSource) {
+      mediaConstraints.video = { deviceId: {exact: videoSource} };
+    }
+    if (isDepth()) {
+      mediaConstraints.video.videoKind = {exact: "depth" };
+    }
+    console.log(mediaConstraints);
+
+
+    navigator.mediaDevices.getUserMedia(mediaConstraints)
+    .then(function (stream) { // success
+      localStream = stream;
+      //localVideo.src = window.URL.createObjectURL(localStream);
+      localVideo.srcObject = localStream;
+    }).catch(function (error) { // error
+      console.error('mediaDevice.getUserMedia() error:', error);
+      return;
+    });
+  }
+  
+  // stop local video
+  function stopVideo() {
+    localVideo.pause();
+    //window.URL.revokeObjectURL(localVideo.src);
+    //localVideo.src = '';
+    localVideo.srcObject = null;
+
+    stopLocalStream(localStream);
+    //for (track of localStream.getTracks()) {
+    //  track.stop();
+    //}
+    localStream = null;    
+  }
+
+
+  // ---- device list ---
+  let audioSelect = document.getElementById('audioSource');
+  let videoSelect = document.getElementById('videoSource');
+
+  function isDepth() {
+    const videoIndex = videoSelect.selectedIndex;
+    const option = videoSelect.options[videoIndex];
+    const label = option.text;
+    console.log(label);
+    if (label.indexOf("Depth") >= 0) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+
+  function getDevice() {
+    navigator.mediaDevices.getUserMedia({video: true, audio: true})
+    .then(stream => callBackDeviceList(stream))
+    .catch(err => console.error(err));
+  }
+
+  function callBackDeviceList(stream) {
+    navigator.mediaDevices.enumerateDevices()
+    .then(function(devices) {
+      devices.forEach(function(device) {
+        console.log(device.kind + ": " + device.label + " id = " + device.deviceId);
+        if (device.kind === 'audioinput') {
+          var id = device.deviceId;
+          var label = device.label || 'microphone' + '(' + id + ')'; // label is available for https 
+          var option = document.createElement('option');
+          option.setAttribute('value', id);
+          option.innerHTML = label;
+          audioSelect.appendChild(option);
+        } else if (device.kind === 'videoinput') {
+          var id = device.deviceId;
+          var label = device.label || 'camera' + '(' + id + ')'; // label is available for https 
+
+          var option = document.createElement('option');
+          option.setAttribute('value', id);
+          option.innerHTML = label;
+          videoSelect.appendChild(option);
+        }
+      });
+    })
+    .catch(function(err) {
+        console.log(err.name + ": " + error.message);
+    });
+
+    stopLocalStream(stream);
+  }
+
+  function stopLocalStream(stream) {
+    if (!stream) {
+      return;
+    }
+    let tracks = stream.getTracks();
+    if (! tracks) {
+      console.warn('NO tracks');
+      return;
+    }
+    
+    for (let track of tracks) {
+      track.stop();
+    }
+  }
+
+</script>
+</html>
