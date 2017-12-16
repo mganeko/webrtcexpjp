@@ -1,0 +1,682 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <meta charset="UTF-8"/>
+ <title>360 Mask</title>
+</head>
+<body>
+  <span style="font-size: large">Mask with FaceDetector</span>
+  <label>&nbsp; Notice: <span id="notice_area" style="color:#44f; background-color:#ffa"></span></label><br />
+  <button onclick="getDevice()">Get Devices</button>
+  Video:
+  <select id="videoSource"></select>
+  &nbsp;VideoSize:
+  <select id="camera_size_select">
+    <option value="default" selected="1">default</option>
+    <option value="VGA">VGA(640x480)</option>
+    <option value="THETA-V-FHD">THETA V(1920x960)</option>
+    <option value="THETA-V-4K">THETA V 4K(3840x1920)</option>
+    <option value="HD">HD(1280x720)</option>
+    <option value="FHD">FullHD(1920x1080)</option>
+  </select>
+  <button id="start_video_button" onclick="startVideo();">Start Video</button>
+  <button id="stop_video_button" onclick="stopVideo();">Stop Video</button>
+  &nbsp;
+  <br />
+  <div>
+    <video id="local_video" autoplay playsinline muted volume="0" width="240px" height="120px" style="border: 1px solid black;"></video>
+    <br />
+    <button id="capture_shot_button" onclick="startCountdown()">Take Snap</button>
+    <span id="state_span" style="color:#22f; background-color:#ff8"></span>
+    <br />
+    <canvas id="snapshot_canvas" width="240px" height="120px" style="border: 1px solid black;"></canvas><br />      
+    <br />
+    Convert to stream: 
+    <button type="button" onclick="startConvert();">Start</button>
+    <button type="button" onclick="stopConvert();">Stop</button>
+    <br />
+    Drag to set masking area, or 
+    <input type="checkbox" id="use_face_detection" onchange"">use Face Detection</input>
+    &nbsp;
+    <span>
+      (<input type="radio" id="mask_inside" name="mask" value="inside" checked="1">Mask inside area</input>
+      <input type="radio" id="mask_outside" name="mask" value="outside">Mask outside area</input>)
+    </span>
+    <br />  
+    <canvas id="duplicate_canvas" width="240px" height="120px" style="border: 1px solid black;"></canvas><br />
+    Face Detection<br />
+    <canvas id="face_canvas" width="240px" height="120px" style="xdisplay: none; border: 1px solid black;"></canvas><br />    
+    captured stream<br />
+    <video id="captured_video" autoplay playsinline muted volume="0" width="240px" height="120px" style="border: 1px solid black;"></video><br />
+    &nbsp;
+  
+  </div>
+  <div id="remote_container" style="color:#22f; background-color:#f0f0f0">
+  </div>
+  
+</body>
+<script type="text/javascript">
+
+  let localVideo = document.getElementById('local_video');
+  let remoteContainer = document.getElementById('remote_container');
+  let stateSpan = document.getElementById('state_span');
+  let cameraSizeSelect = document.getElementById('camera_size_select');
+  let maskInsideRadio = document.getElementById('mask_inside');
+  let maskOutsideRadio = document.getElementById('mask_outside');
+  let useFaceDetectionCheck = document.getElementById('use_face_detection');
+  let intervalId = null;
+
+  if (window.FaceDetector) {
+    enableElement('use_face_detection');
+  }
+  else {
+    disableElement('use_face_detection');
+    useFaceDetectionCheck.innerText = 'need flag to use Face Detection';
+  }
+
+  // --- prefix -----
+  RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+  RTCSessionDescription = window.RTCSessionDescription || window.webkitRTCSessionDescription || window.mozRTCSessionDescription;
+
+
+// ============= THETA V MASK =================
+
+  let snapshotCanvas = document.getElementById('snapshot_canvas');
+  let ctxSnapshot = snapshotCanvas.getContext('2d');
+  let faceCanvas = document.getElementById('face_canvas');
+  let ctxFace = faceCanvas.getContext('2d');
+  let deviceStream = null;
+
+  let countdownTimer = null;
+  let countdownCounter = 0;
+  function startCountdown() {
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+
+    countdownCounter = 3;
+    countdownTimer = setInterval(countdownForSnapShot, 1000);
+    setNotice(countdownCounter);
+    showState(countdownCounter);
+  }
+
+  function countdownForSnapShot() {
+    countdownCounter--;
+    setNotice(countdownCounter);
+    showState(countdownCounter);
+
+    if (countdownCounter <= 0) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+
+      captureSnapShot();
+    }
+  }
+
+  function captureSnapShot() {
+    drawVideoToCanvas(localVideo, snapshotCanvas, ctxSnapshot);
+  }
+
+  function setLocalStream(stream) {
+    deviceStream = stream;
+  }
+
+  function getLocalStream() {
+    return deviceStream;
+  }
+
+  // -- video stream --
+  let duplicateCanvas = document.getElementById('duplicate_canvas');
+  let ctxDuplicate = duplicateCanvas.getContext('2d');
+  let animationId = null;
+  let duplicateStream = null;
+  let capturedVideo = document.getElementById('captured_video');
+
+
+  function startConvert() {
+    // -- convert video with canvas ---
+    if (ctxDuplicate) {
+      ctxDuplicate = null;
+    }
+    ctxDuplicate = duplicateCanvas.getContext('2d');
+    animationId = window.requestAnimationFrame(drawCanvas);
+    
+    duplicateStream = duplicateCanvas.captureStream(30);
+    playVideo(capturedVideo, duplicateStream);
+    capturedVideo.volume = 0;
+
+    //setLocalStream(duplicateStream);
+
+    if (useFaceDetector()) {
+      startFaceDetectInterval();
+    }
+
+    updateButtons();
+  }
+
+  function stopConvert() {
+    // stop video convert
+    if (animationId) {
+      window.cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+
+    if (duplicateStream) {
+      pauseVideo(capturedVideo);
+      //stopLocalStream(duplicateStream);
+      duplicateStream = null;
+
+      //setLocalStream(null);
+    }
+
+    clearFaceDetectInterval();
+  }
+
+  function drawCanvas() {
+    // --- draw video ---
+    drawVideoToDuplicateCanvas();
+
+    // --- mask with snapshot --
+    drawMaskToCanvas();
+
+    // --- draw drag area --
+    drawDragArea();
+
+    // --- keep animation ---
+    animationId = window.requestAnimationFrame(drawCanvas);
+  }
+
+  function drawVideoToDuplicateCanvas() {
+    drawVideoToCanvas(localVideo, duplicateCanvas, ctxDuplicate);
+  }
+
+  function drawVideoToCanvas(video, canvas, ctx) {
+    const srcLeft = 0;
+    const srcTop = 0;
+    const srcWidth = video.videoWidth;
+    const srcHeight = video.videoHeight;
+    const destCanvasLeft = 0;
+    const destCanvasTop = 0;
+    const destCanvasWidth = canvas.width;
+    const destCanvasHeight = canvas.height;
+
+    ctx.drawImage(video, srcLeft, srcTop, srcWidth, srcHeight,
+      destCanvasLeft, destCanvasTop, destCanvasWidth , destCanvasHeight
+    );
+  }
+
+  function drawMaskToCanvas() {
+    if (maskOutsideRadio.checked) {
+      drawMaskOutsideToCanvas();
+    }
+    else {
+      drawMaskInsideToCanvas();
+    }
+  }
+
+  function drawMaskInsideToCanvas() {
+    if ( (maskSrcWidth < 1) || (maskDestWidth < 1) ) {
+      return;
+    }
+    ctxDuplicate.drawImage(snapshotCanvas, maskSrcLeft, maskSrcTop, maskSrcWidth, maskSrcHeight,
+      maskDestLeft, maskDestTop, maskDestWidth , maskDestHeight
+    );
+  }
+
+  function drawMaskOutsideToCanvas() {
+    //console.log('--maks outside---');
+
+    const maskSrcLeft1 = 0;
+    const maskSrcWidth1 = maskSrcLeft;
+    const maskDestLeft1 = 0;
+    const maskDestWidth1 = maskDestLeft;
+    ctxDuplicate.drawImage(snapshotCanvas, maskSrcLeft1, maskSrcTop, maskSrcWidth1, maskSrcHeight,
+      maskDestLeft1, maskDestTop, maskDestWidth1 , maskDestHeight
+    );
+
+    const maskSrcLeft2 = maskSrcLeft + maskSrcWidth;
+    const maskSrcWidth2 = snapshotCanvas.width - maskSrcLeft2;
+    const maskDestLeft2 = maskDestLeft + maskDestWidth;
+    const maskDestWidth2 = duplicateCanvas.width - maskDestLeft2;
+    ctxDuplicate.drawImage(snapshotCanvas, maskSrcLeft2, maskSrcTop, maskSrcWidth2, maskSrcHeight,
+      maskDestLeft2, maskDestTop, maskDestWidth2 , maskDestHeight
+    );
+  }
+
+  let maskDestLeft = 0;
+  let maskDestTop = 0;
+  let maskDestWidth = 0;
+  let maskDestHeight = duplicateCanvas.height;
+  let maskSrcLeft = 0;
+  let maskSrcTop = 0;
+  let maskSrcWidth = 0;
+  let maskSrcHeight = snapshotCanvas.height;
+
+  let mouseDragging = false;
+  let mouseStartX = 0;
+  let mousetStartY = 0;
+  let mouseCurrentX = 0;
+  let mouseCurrentY = 0;
+
+  duplicateCanvas.onmousedown = function(evt) {
+    const rect = evt.target.getBoundingClientRect();
+    mouseStartX =  evt.clientX - rect.left;
+    mouseStartY = evt.clientY - rect.top;
+    mouseCurrentX =  mouseStartX;
+    mouseCurrentY = mouseStartY;
+    console.log('mousedown in snapshotCanvas X,Y=' + mouseStartX +', ' + mouseStartY);
+
+    mouseDragging = true;
+  }
+  
+  duplicateCanvas.onmousemove = function(evt){
+    const rect = evt.target.getBoundingClientRect();
+    mouseCurrentX =  evt.clientX - rect.left;
+    mouseCurrentY = evt.clientY - rect.top;
+
+    console.log('mousemove in snapshotCanvas X,Y=' + mouseCurrentX +', ' + mouseCurrentY);
+  }
+
+  duplicateCanvas.onmouseup = function(evt) {
+    const rect = evt.target.getBoundingClientRect();
+    mouseCurrentX =  evt.clientX - rect.left;
+    mouseCurrentY = evt.clientY - rect.top;
+
+    console.log('onmouseup in snapshotCanvas X,Y=' + mouseCurrentX +', ' + mouseCurrentY);
+
+    if (mouseDragging) {
+      mouseDragging = false;
+      setMaskArea();
+    }
+
+  }
+
+  function setMaskArea() {
+    maskDestLeft = mouseStartX;
+    maskDestTop = 0; //mouseStartY;
+    maskDestWidth = mouseCurrentX - mouseStartX;
+    maskDestHeight = duplicateCanvas.height; //mouseCurrentY - mouseStartY;
+
+    maskSrcLeft = Math.floor(maskDestLeft * (snapshotCanvas.width / duplicateCanvas.width));
+    maskSrctTop = 0;
+    maskSrcWidth = Math.floor(maskDestWidth * (snapshotCanvas.width / duplicateCanvas.width));
+    maskSrcHeight = snapshotCanvas.height;
+  }
+
+  function drawDragArea() {
+    if (mouseDragging) {
+      ctxDuplicate.beginPath();
+      ctxDuplicate.strokeStyle = "#FF0000";
+      //ctxDuplicate.rect(mouseStartX, mouseStartY, mouseCurrentX - mouseStartX, mouseCurrentY - mouseStartY);
+      ctxDuplicate.rect(mouseStartX, 0, mouseCurrentX - mouseStartX, duplicateCanvas.height-2);
+      ctxDuplicate.closePath();
+      ctxDuplicate.stroke();
+    }
+  }
+
+  const VIDEO_WIDTH_MAX = 240; //480; //240; // 960; //480;
+  const CANVAS_WIDTH_MAX = 480; //480; //960; //1920;
+
+  function adjustVideoCanvasSize() {
+    const videoWidth = localVideo.videoWidth;
+    const videoHeight = localVideo.videoHeight;
+    const videoRatio = videoWidth / videoHeight;
+
+    // --- localVideo ---
+    localVideo.width = VIDEO_WIDTH_MAX;
+    localVideo.height = Math.floor(localVideo.width / videoRatio);
+
+    // --- snapshot ---
+    snapshotCanvas.width = CANVAS_WIDTH_MAX;
+    snapshotCanvas.height = Math.floor(snapshotCanvas.width / videoRatio);
+
+    // --- dupulicateCanvas ---
+    duplicateCanvas.width = CANVAS_WIDTH_MAX;
+    duplicateCanvas.height = Math.floor(duplicateCanvas.width / videoRatio);
+
+    // --- faceCanvas ---
+    faceCanvas.width = CANVAS_WIDTH_MAX;
+    faceCanvas.height = Math.floor(faceCanvas.width / videoRatio);
+
+
+    // --- capturedVideo ---
+    capturedVideo.width = VIDEO_WIDTH_MAX;
+    capturedVideo.height = Math.floor(capturedVideo.width / videoRatio);
+  }
+
+  // ---- face detection ---
+  //let faceLeft = 0;
+  //let faceTop = 0;
+  //let faceWidth = 0;
+  //let faceHeight = faceCanvas.height;
+  let faceDetector = null;
+
+  function useFaceDetector() {
+    if (useFaceDetectionCheck.checked) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+
+  function faceDetect() {
+    if (! window.FaceDetector) {
+      return;
+    }
+
+    if (! faceDetector) {
+      faceDetector = new FaceDetector();
+    }
+
+    captureForFace();
+    faceDetector.detect(faceCanvas) // detect from canvas
+    //faceDetector.detect(localVideo) // detect from video (can detect, but boudingBox is wrong somehow)
+    .then(faces => {
+      faces.forEach(face => console.log(face));
+      console.log(faces);
+      if (faces.length > 0) {
+        let face = faces[0];
+        const top = 0;
+        const left = face.boundingBox.x - 20;
+        const width = face.boundingBox.width + 20*2;
+        const height = faceCanvas.height;
+
+        drawRectFace(ctxFace, left, top, width, height); // draw for canvas
+        setMaskAreaFromFace(left, top, width, height);
+      }
+      else {
+        //faceLeft = 0;
+        //faceWidth = 0;
+      }
+    })
+    .catch(e => {
+      console.error("Boo, Face Detection failed: " + e);
+    });
+  }
+
+  function startFaceDetectInterval() {
+    intervalId = setInterval(faceDetect, 500);
+  }
+
+  function clearFaceDetectInterval() {
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  }
+
+  function drawRectFace(ctx, left, top, width, height) {
+    const lineWidth = 2;
+    ctx.beginPath();
+    ctx.strokeStyle = "#FF0000";
+    ctx.lineWidth = lineWidth;
+    ctx.rect(left, top, width, height-lineWidth);
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  function captureForFace() {
+    drawVideoToCanvas(localVideo, faceCanvas, ctxFace);
+  }
+
+  function setMaskAreaFromFace(left, top, width, height) {
+    maskDestLeft = Math.floor(left * (duplicateCanvas.width / faceCanvas.width));
+    maskDestTop = 0;
+    maskDestWidth = Math.floor(width * (duplicateCanvas.width / faceCanvas.width));
+    maskDestHeight = duplicateCanvas.height;
+
+    maskSrcLeft = Math.floor(maskDestLeft * (snapshotCanvas.width / duplicateCanvas.width));
+    maskSrctTop = 0;
+    maskSrcWidth = Math.floor(maskDestWidth * (snapshotCanvas.width / duplicateCanvas.width));
+    maskSrcHeight = snapshotCanvas.height;
+  }
+
+// ============= THETA V MASK =================
+
+
+  // ---- device list ---
+  //let audioSelect = document.getElementById('audioSource');
+  let videoSelect = document.getElementById('videoSource');
+
+  function getDevice() {
+    // -- clear --
+    while(videoSelect.lastChild)
+    {
+      videoSelect.removeChild(videoSelect.lastChild);
+    }
+
+    // -- enum device --
+    navigator.mediaDevices.getUserMedia({video: true, audio: true})
+    .then(stream => callBackDeviceList(stream))
+    .catch(err => console.error(err));
+  }
+
+  function callBackDeviceList(stream) {
+    navigator.mediaDevices.enumerateDevices()
+    .then(function(devices) {
+      devices.forEach(function(device) {
+        console.log(device.kind + ": " + device.label + " id = " + device.deviceId);
+        /*
+        if (device.kind === 'audioinput') {
+          var id = device.deviceId;
+          var label = device.label || 'microphone' + '(' + id + ')'; // label is available for https 
+          var option = document.createElement('option');
+          option.setAttribute('value', id);
+          option.innerHTML = label;
+          audioSelect.appendChild(option);
+        } else */
+        if (device.kind === 'videoinput') {
+          var id = device.deviceId;
+          var label = device.label || 'camera' + '(' + id + ')'; // label is available for https 
+
+          var option = document.createElement('option');
+          option.setAttribute('value', id);
+          option.innerHTML = label;
+          videoSelect.appendChild(option);
+
+          if (label.indexOf('THETA V') >= 0) {
+            console.log('Find THETA V');
+            option.selected = true;
+
+            cameraSizeSelect.selectedIndex = 2; // THETA V FHD
+          }
+        }
+      });
+    })
+    .catch(function(err) {
+        console.log(err.name + ": " + error.message);
+    });
+
+    stopLocalStream(stream);
+  }
+
+
+  // --- notice ---
+  function setNotice(text) {
+    const noticeArea = document.getElementById('notice_area');
+    noticeArea.innerText = text;
+  }
+
+
+  
+  // ---------------------- media handling ----------------------- 
+  // start local video
+  function startVideo() {
+    const mediaConstraints = getMediaOptions();
+    getDeviceStream(mediaConstraints)
+    .then(function (stream) { // success
+      //localStream = stream;
+      setLocalStream(stream);
+      logStream('localstream', stream);
+      playVideo(localVideo, stream);
+      localVideo.volume = 0;
+      localVideo.onloadedmetadata = function() {
+        adjustVideoCanvasSize();
+      }
+      
+      updateButtons();
+    }).catch(function (error) { // error
+      console.error('getUserMedia error:', error);
+      return;
+    });
+  }
+
+  function getMediaOptions() {
+    let mediaConstraints = {video: true, audio: false};
+    const sizeString = cameraSizeSelect.options[cameraSizeSelect.selectedIndex].value;
+
+    let options = { video: true, audio: false};
+    if (sizeString === 'VGA') {
+      options.video = { width: { min: 640, max: 640}, height: { min: 480, max: 480 } };
+    }
+    else if (sizeString === 'HD') {
+      options.video = { width: { min: 1280, max: 1280}, height: { min: 720, max: 720 } };
+    }
+    else if (sizeString === 'FHD') {
+      options.video = { width: { min: 1920, max: 1920}, height: { min: 1080, max: 1080 } };
+    }
+    else if (sizeString === 'THETA-V-FHD') {
+      options.video = { width: { min: 1920, max: 1920}, height: { min: 960, max: 960 } };
+    }
+    else if (sizeString === 'THETA-V-4K') {
+      options.video = { width: { min: 3840, max: 3840}, height: { min: 1920, max: 1920 } };
+    }
+
+    console.log('camera size=' + sizeString, options);
+
+    //const audioSource = audioSelect.value;
+    const videoSource = videoSelect.value;
+    if (videoSource) {
+      //options.video = { deviceId: {exact: videoSource} };
+      options.video.deviceId = {exact: videoSource};
+    }
+    console.log(options);
+
+    return options;
+  }
+
+  // stop local video
+  function stopVideo() {
+    pauseVideo(localVideo);
+    let localStream = getLocalStream();
+    stopLocalStream(localStream);
+    localStream = null;
+    setLocalStream(null);
+
+    updateButtons();
+  }
+
+  function stopLocalStream(stream) {
+    let tracks = stream.getTracks();
+    if (! tracks) {
+      console.warn('NO tracks');
+      return;
+    }
+    
+    for (let track of tracks) {
+      track.stop();
+    }
+  }
+  
+  function getDeviceStream(option) {
+    if ('getUserMedia' in navigator.mediaDevices) {
+      console.log('navigator.mediaDevices.getUserMadia');
+      return navigator.mediaDevices.getUserMedia(option);
+    }
+    else {
+      console.log('wrap navigator.getUserMadia with Promise');
+      return new Promise(function(resolve, reject){    
+        navigator.getUserMedia(option,
+          resolve,
+          reject
+        );
+      });      
+    }
+  }
+
+  function playVideo(element, stream) {
+    if ('srcObject' in element) {
+      element.srcObject = stream;
+    }
+    else {
+      element.src = window.URL.createObjectURL(stream);
+    }
+    element.play();
+    element.volume = 0;
+  }
+
+  function pauseVideo(element) {
+    element.pause();
+    if ('srcObject' in element) {
+      element.srcObject = null;
+    }
+    else {
+      if (element.src && (element.src !== '') ) {
+        window.URL.revokeObjectURL(element.src);
+      }
+      element.src = '';
+    }
+  }
+
+
+
+  function showState(state) {
+    stateSpan.innerText = state;
+  }
+
+  function logStream(msg, stream) {
+    console.log(msg + ': id=' + stream.id);
+
+    let videoTracks = stream.getVideoTracks();
+    if (videoTracks) {
+    console.log('videoTracks.length=' + videoTracks.length);
+    videoTracks.forEach(function(track) {
+      console.log(' track.id=' + track.id);
+    });
+    }
+    
+    let audioTracks = stream.getAudioTracks();
+    if (audioTracks) {
+    console.log('audioTracks.length=' + audioTracks.length);
+    audioTracks.forEach(function(track) {
+      console.log(' track.id=' + track.id);
+    });
+    }
+  }
+
+
+  function updateButtons() {
+    if (getLocalStream()) {
+      disableElement('start_video_button');
+      enableElement('stop_video_button');
+    }
+    else {
+      enableElement('start_video_button');
+      disableElement('stop_video_button');
+    }
+  }
+
+  function enableElement(id) {
+    let element = document.getElementById(id);
+    if (element) {
+      element.removeAttribute('disabled');
+    }
+  }
+
+  function disableElement(id) {
+    let element = document.getElementById(id);
+    if (element) {
+      element.setAttribute('disabled', '1');
+    }    
+  }
+
+
+  // --------- initial ------------
+  updateButtons();
+
+  console.log('=== ready ==='); 
+</script>
+</html>
