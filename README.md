@@ -20,6 +20,12 @@ Qiitaの記事は[こちら](https://qiita.com/massie_g/items/0635a212f5860fe590
 
 * ローカルの映像/音声ファイルを2種類切り替えながら表示する(VJ的なもの)。録画も可能 [switch_to_stream_rec.html](/tool/switch_to_stream_rec.html)
 
+### すべてのオッサンをWebRTCで配信される前に360度映像から消し去りたい
+
+Qiitaの記事は[こちら](https://qiita.com/massie_g/)
+
+* カメラの映像に静止画でマスクをかけて、自分の姿を消す。顔検出も試してみた [mask_face.html](tool/mask_face.html)
+
 
 ### ブラウザの BroadcastChannel を使ってシグナリング
 
