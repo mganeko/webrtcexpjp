@@ -5,34 +5,23 @@
  <title>Hand Signaling</title>
 </head>
 <body>
-  DataChannel signaling after Hand 2018<br />
-  <button type="button" onclick="connect(true);">Connect Datachannel by hand</button>
-  <button type="button" onclick="hangUp();">Hang Up</button>
-  <!-- memo ---
-    hang up 後の処理が不適切。再接続できない
-
-    // memo: track.clone() で別のIDのtrackが生成される
-  -->
-  &nbsp;
-  <button type="button" onclick="sendData({ type: 'text', body: 'hello' });;">send hello</button>
-  <br />
+  Hand Signaling and DataChannel 2018<br />
   <input type="checkbox" id="use_video" checked="1">use Video</input>
   <input type="checkbox" id="use_audio" checked="1">use Audio</input>
   <button type="button" onclick="startVideo();">Start Media</button>
   <button type="button" onclick="stopVideo();">Stop Media</button>
-  <!--
-  <input type="checkbox" id="send_only" disabled="1" style="color: lightgray">media send only</input>
-  -->
+  &nbsp;
+  <input type="checkbox" id="send_only">send only</input>
+  <button type="button" onclick="connect(true);">Connect Datachannel</button>
+  <button type="button" onclick="hangUp();">Hang Up</button>
+  &nbsp;
+  <button type="button" onclick="sendData({ text: 'hello' });;">send data</button>
   <br />
-  <input type="checkbox" id="send_auto" checked="1">auto Send SDP over DataChannel </input>
-  &nbsp; 
   <button type="button" onclick="addTrack('video');">add Video</button>
   <button type="button" onclick="addTrack('audio');">add Audo</button>
   <button type="button" onclick="removeTrack('video');">remove Video</button>
   <button type="button" onclick="removeTrack('audio');">remove Audo</button>
-  &nbsp; 
-  <button type="button" onclick="reSendOffer();">re-Offer over DataChannel</button>
- 
+  
 
   <div>
     <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
@@ -98,15 +87,8 @@
   }
 
   function isSendOnly() {
-    return false;
-
-    //let sendOnly = document.getElementById('send_only').checked;
-    //return sendOnly;
-  }
-
-  function isAutoSendSDP() {
-    let sendAudo = document.getElementById('send_auto').checked;
-    return sendAudo;    
+    let sendOnly = document.getElementById('send_only').checked;
+    return sendOnly;
   }
 
   // start local video
@@ -219,13 +201,57 @@
     let text = textToReceiveSdp.value;
     text = _trimTailDoubleLF(text); // for Safar TP --> Chrome
     if (peerConnection) {
-      console.log('Received answer text...');
-      description = new RTCSessionDescription({
-        type : 'answer',
-        sdp : text,
-      });
-      setAnswer(description);
-      //}
+      let description = null;
+      if (peerConnection.remoteDescription.type === 'offer') {
+        console.log('Received re-offer text...');
+        description = new RTCSessionDescription({
+          type : 'offer',
+          sdp : text,
+        });
+        peerConnection.setRemoteDescription(description)
+        .then(function() {
+          console.log('setRemoteDescription() succsess in promise');
+          const options = { offerToReceiveAudio: true, offerToReceiveVideo: true };
+          peerConnection.createAnswer(options)
+          .then(function (sessionDescription) {
+            console.log('createAnswer() succsess in promise');
+            return peerConnection.setLocalDescription(sessionDescription);
+          }).then(function() {
+            console.log('setLocalDescription() succsess in promise');
+
+            // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+            // -- Vanilla ICE の場合には、まだSDPは送らない --
+            // -- 再生成の場合には、すぐに送る ---
+            sendSdp(peerConnection.localDescription);
+          }).catch(function(err) {
+            console.error(err);
+          });
+        }).catch(function(err) {
+          console.error('setRemoteDescription() ERROR: ', err);
+        });
+      }
+      else if (peerConnection.remoteDescription.type === 'answer') {
+        console.log('Received re-answer text...');
+        description= new RTCSessionDescription({
+          type : 'answer',
+          sdp : text,
+        });
+        peerConnection.setRemoteDescription(description)
+        .then(function() {
+          console.log('setRemoteDescription() succsess in promise');
+        }).catch(function(err) {
+          console.error('setRemoteDescription() ERROR: ', err);
+        });
+      }
+      else {
+        console.log('Received answer text...');
+        description = new RTCSessionDescription({
+          type : 'answer',
+          sdp : text,
+        });
+        setAnswer(description);
+      }
+
     }
     else {
       console.log('Received offer text...');
@@ -266,6 +292,7 @@
 
     // also show in textArea
     textForSendSdp.value = sessionDescription.sdp;
+    //textForSendSdp.focus();
     textForSendSdp.select();
   }
 
@@ -277,7 +304,7 @@
     // --- on get remote stream ---
     if ('ontrack' in peer) {
       peer.ontrack = function(event) {
-        console.log('-- peer.ontrack()');
+        console.log('-- peer.ontrack() kind=' + event.track.kind);
         let stream = event.streams[0];
         _logStream('ontrack', stream);
         if (event.streams.length > 1) {
@@ -294,28 +321,11 @@
 
         stream.onaddtrack = function (evt) {
           _logStream('stream.onaddtrack', stream);
-          const track = evt.track;
-          console.log('stream.onaddtrack(): track kind=', track.kind);
-          if (track.kind === 'video') {
-            playVideo(remoteVideo, stream);
-          }
-          else if (track.kind === 'audio') {
-            playVideo(remoteAudio, stream);
-            remoteAudio.volume = 0.5;
-          }
+          console.log('stream.onaddtrack():', evt);
         };
         stream.onremovetrack = function (evt) {
           _logStream('stream.onremovetrack', stream);
-          //console.log('stream.onremovetrack():', evt);
-          const track = evt.track;
-          console.log('stream.onremovetrack(): track kind=', track.kind);
-          if (track.kind === 'video') {
-            pauseVideo(remoteVideo);
-          }
-          else if (track.kind === 'audio') {
-            pauseVideo(remoteAudio);
-          }
-
+          console.log('stream.onremovetrack():', evt);
         };
       };
     }
@@ -365,37 +375,35 @@
         return;
       }
       
-      if (! isAutoSendSDP()) {
-        return;
-      }
 
-      const options = {};
-      /*----
       let sdp = peerConnection.localDescription;
-      if (sdp.type === 'offer') {
+      options = {};
+      /*
+      //if (sdp.type === 'offer') {
         peerConnection.createOffer(options)
         .then(function (sessionDescription) {
-          console.log('createOffer() succsess in promise');
+          console.log('re-createOffer() succsess in promise');
           return peerConnection.setLocalDescription(sessionDescription);
         }).then(function() {
-          console.log('setLocalDescription() succsess in promise');
+          console.log('re-setLocalDescription() succsess in promise');
 
           // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
           // -- Vanilla ICE の場合には、まだSDPは送らない --
           // -- 再生成の場合には、すぐに送る ---
+          //sendSdp(peerConnection.localDescription);
           sendSdpOverDataChannel(peerConnection.localDescription);
         }).catch(function(err) {
           console.error(err);
         });
-      }
-      else {
-      ---*/
+      //}
+      */
+      //else {
         peerConnection.createOffer(options)
         .then(function (sessionDescription) {
-          console.log('createOffer() succsess in promise');
+          console.log('re-createOffer2() succsess in promise');
           return peerConnection.setLocalDescription(sessionDescription);
         }).then(function() {
-          console.log('setLocalDescription() succsess in promise');
+          console.log('re-setLocalDescription2() succsess in promise');
 
           // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
           // -- Vanilla ICE の場合には、まだSDPは送らない --
@@ -418,10 +426,35 @@
         }
         dc = evt.channel;
         setupDataChannel(dc);
+        /*
+        dc.onmessage = function (evt) {
+          const msg = evt.data;
+          console.log('Message over DataChannel:', msg);
+          const obj = JSON.parse(msg);
+
+          if (obj.type === 'offer') {
+            console.log('--got offer over dataChannel--');
+            const sendNow = true;
+            setOffer(obj, sendNow);
+          }
+          else if (obj.type === 'answer') {
+            console.log('--got answer over dataChannel--');
+            setAnswer(obj);
+          }
+        };
+
+        dc.onclose = function (evt) {
+          dataChannel = null;
+        };
+
+        dc.onerror = function (evt) {
+          console.error('DataChannel ERROR:', err);
+        };
+        */
+
         dataChannel = dc;
       }
     }
-    /*
     else {
       if (localStream) {
         console.log('Adding local stream...');
@@ -441,7 +474,6 @@
         console.warn('no local stream, but continue.');
       }
     }
-    */
 
     return peer;
   }
@@ -449,6 +481,32 @@
   function prepareDataChannel(peer) {
     const dc = peer.createDataChannel("channel");
     setupDataChannel(dc);
+    /*
+    dc.onmessage = function (evt) {
+      const msg = evt.data;
+      console.log('Message over DataChannel:', msg);
+      const obj = JSON.parse(msg);
+
+      if (obj.type === 'offer') {
+        console.log('--got offer over dataChannel2--');
+        const sendNow = true;
+        setOffer(obj, sendNow);
+      }
+      else if (obj.type === 'answer') {
+        console.log('--got answer over dataChannel2--');
+        setAnswer(obj);            
+      }
+    };
+
+    dc.onclose = function (evt) {
+      dataChannel = null;
+    };
+
+    dc.onerror = function (evt) {
+      console.error('DataChannel ERROR:', err);
+    };
+    */
+
     dataChannel = dc;
     return dc;
   }
@@ -456,33 +514,33 @@
   function setupDataChannel(dc) {
     dc.onmessage = function (evt) {
       const msg = evt.data;
+      //console.log('text Message over DataChannel:', msg);
       const obj = JSON.parse(msg);
-      if (obj.type === 'text') {
-        console.log('text Message over DataChannel:', msg);
+      if (obj.text) {
+        console.log('text Message over DataChannel:', obj.text);
       }
-      else if (obj.type === 'offer') {
-        console.log('--got offer over dataChannel--');
+
+      if (obj.type === 'offer') {
+        console.log('--got offer over dataChannel2--');
         const sendNow = true;
         setOffer(obj, sendNow);
       }
       else if (obj.type === 'answer') {
-        console.log('--got answer over dataChannel--');
+        console.log('--got answer over dataChannel2--');
         setAnswer(obj);            
       }
     };
 
-    dc.onopen = function (evt) {
-      console.log('datachannel open');
-    };
     dc.onclose = function (evt) {
       dataChannel = null;
     };
+
     dc.onerror = function (evt) {
       console.error('DataChannel ERROR:', err);
     };
   }
 
-  function preparePeerAndmakeOffer(withDataChannel) {
+  function makeOffer(withDataChannel) {
     let options = {};
     peerConnection = prepareNewConnection(withDataChannel);
     if (withDataChannel) {
@@ -527,29 +585,6 @@
     });
   }
 
-  function reSendOffer() {
-    if (! peerConnection) {
-      console.warn('peerConnection NOT READY');
-      return;
-    }
-
-    const options = {};
-    peerConnection.createOffer(options)
-    .then(function (sessionDescription) {
-      console.log('createOffer() succsess in promise');
-      return peerConnection.setLocalDescription(sessionDescription);
-    }).then(function() {
-      console.log('setLocalDescription() succsess in promise');
-
-      // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
-      // -- Vanilla ICE の場合には、まだSDPは送らない --
-      // -- 再送の場合には、すぐに送る
-      sendSdpOverDataChannel(peerConnection.localDescription);
-    }).catch(function(err) {
-      console.error(err);
-    });
-  }
-
   function preparePeerAndSetOffer(sessionDescription) {
     const useDataChannel = true;
     if (peerConnection) {
@@ -559,6 +594,15 @@
 
     const sendNow = false;
     setOffer(sessionDescription, sendNow);
+    /*--
+    peerConnection.setRemoteDescription(sessionDescription)
+    .then(function() {
+      console.log('setRemoteDescription(offer) succsess in promise');
+      makeAnswer();
+    }).catch(function(err) {
+      console.error('setRemoteDescription(offer) ERROR: ', err);
+    });
+    --*/
   }
 
   function setOffer(sessionDescription, sendNow) {
@@ -626,7 +670,7 @@
   function connect(withDataChannel) {
     if (! peerConnection) {
       console.log('make Offer');
-      preparePeerAndmakeOffer(withDataChannel);
+      makeOffer(withDataChannel);
     }
     else {
       console.warn('peer already exist.');
@@ -669,13 +713,12 @@
       track = localStream.getAudioTracks()[0];      
     }
 
-    // let sender = peerConnection.addTrack(track); // another stream in chrome, error in firefox
+    // let sender = peerConnection.addTrack(track); // split stream
     let sender = peerConnection.addTrack(track, localStream); // same stream
     senders[kind] = sender;
   }
 
   function removeTrack(kind) {
-    console.log('removing track kind=' + kind);
     if (! localStream) {
       return;
     }
@@ -699,14 +742,13 @@
       return;
     }
 
-    if (remoteVideo.srcObject && (remoteVideo.srcObject.id === stream.id) ) {
-      console.log('--stop remote video streamid=' + stream.id);
-      pauseVideo(remoteVideo);
-    }
-
-    if (remoteAudio.srcObject && (remoteAudio.srcObject.id === stream.id) ) {
-      console.log('--stop remote audio streamid=' + stream.id);
-      pauseVideo(remoteAudio);
+    if (remoteVideo.srcObject) {
+      if (remoteVideo.srcObject.id === stream.id) {
+        pauseVideo(remoteVideo);
+      }
+      else if (remoteAudio.srcObject.id === stream.id) {
+        pauseVideo(remoteAudio);
+      }
     }
   }
 </script>
