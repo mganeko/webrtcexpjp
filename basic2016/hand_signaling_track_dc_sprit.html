@@ -1,0 +1,723 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>Hand Signaling</title>
+</head>
+<body>
+  Hand Signaling and DataChannel 2018<br />
+  <input type="checkbox" id="use_video" checked="1">use Video</input>
+  <input type="checkbox" id="use_audio" checked="1">use Audio</input>
+  <button type="button" onclick="startVideo();">Start Media</button>
+  <button type="button" onclick="stopVideo();">Stop Media</button>
+  &nbsp;
+  <input type="checkbox" id="send_only">send only</input>
+  <button type="button" onclick="connect(true);">Connect Datachannel</button>
+  <button type="button" onclick="hangUp();">Hang Up</button>
+  &nbsp;
+  <button type="button" onclick="sendData({ text: 'hello' });;">send data</button>
+  <br />
+  <button type="button" onclick="addTrack('video');">add Video</button>
+  <button type="button" onclick="addTrack('audio');">add Audo</button>
+  <button type="button" onclick="removeTrack('video');">remove Video</button>
+  <button type="button" onclick="removeTrack('audio');">remove Audo</button>
+  
+
+  <div>
+    <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+    <video id="remote_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+    <audio id="remote_audio" autoplay controls="1" style="width: 160px; height: 40px; border: 1px solid black;"></audio>
+  </div>
+  <p>SDP to send:&nbsp;
+    <button type="button" onclick="copySdp();">copy local SDP</button><br />
+    <textarea id="text_for_send_sdp" rows="5" cols="60" readonly="readonly">SDP to send</textarea>
+  </p>
+  <p>SDP to receive:&nbsp;
+    <button type="button" onclick="onSdpText();">Receive remote SDP</button><br />
+    <textarea id="text_for_receive_sdp" rows="5" cols="60"></textarea>
+  </p>
+</body>
+<script type="text/javascript">
+  const useDataChannel = true;
+  let localVideo = document.getElementById('local_video');
+  let remoteVideo = document.getElementById('remote_video');
+  let remoteAudio = document.getElementById('remote_audio');
+  let localStream = null;
+  let peerConnection = null;
+  let dataChannel = null;
+  let textForSendSdp = document.getElementById('text_for_send_sdp');
+  let textToReceiveSdp = document.getElementById('text_for_receive_sdp');
+  let senders = [];
+
+  // --- prefix -----
+  navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
+                            navigator.mozGetUserMedia || navigator.msGetUserMedia;
+  RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+  RTCSessionDescription = window.RTCSessionDescription || window.webkitRTCSessionDescription || window.mozRTCSessionDescription;
+
+  function _logStream(msg, stream) {
+    console.log(msg + ': id=' + stream.id);
+    let videoTracks = stream.getVideoTracks();
+    if (videoTracks) {
+      console.log('videoTracks.length=' + videoTracks.length);
+      videoTracks.forEach(function(track) {
+        console.log(' track.id=' + track.id);
+      });
+    }
+    
+    let audioTracks = stream.getAudioTracks();
+    if (audioTracks) {
+      console.log('audioTracks.length=' + audioTracks.length);
+      audioTracks.forEach(function(track) {
+        console.log(' track.id=' + track.id);
+      });
+    }
+  }
+
+  // ---------------------- media handling ----------------------- 
+
+  function isUseVideo() {
+    let useVideo = document.getElementById('use_video').checked;
+    return useVideo;
+  }
+
+  function isUseAudio() {
+    let useAudio = document.getElementById('use_audio').checked;
+    return useAudio;
+  }
+
+  function isSendOnly() {
+    let sendOnly = document.getElementById('send_only').checked;
+    return sendOnly;
+  }
+
+  // start local video
+  function startVideo() {
+    let useVideo = isUseVideo();
+    let useAudio = isUseAudio();
+    if ( (! useVideo) && (! useAudio) ) {
+      console.warn('NO media to capture');
+      return;
+    }
+
+    getDeviceStream({video: useVideo, audio: useAudio}) // audio: false
+    .then(function (stream) { // success
+      logStream('localStream', stream);
+      localStream = stream;
+      playVideo(localVideo, stream);
+    }).catch(function (error) { // error
+      console.error('getUserMedia error:', error);
+      return;
+    });
+  }
+
+  // stop local video
+  function stopVideo() {
+    pauseVideo(localVideo);
+    stopLocalStream(localStream);
+  }
+
+  function stopLocalStream(stream) {
+    let tracks = stream.getTracks();
+    if (! tracks) {
+      console.warn('NO tracks');
+      return;
+    }
+    
+    for (let track of tracks) {
+      track.stop();
+    }
+  }
+
+  function logStream(msg, stream) {
+    console.log(msg + ': id=' + stream.id);
+
+    var videoTracks = stream.getVideoTracks();
+    if (videoTracks) {
+      console.log('videoTracks.length=' + videoTracks.length);
+      for (var i = 0; i < videoTracks.length; i++) {
+        var track = videoTracks[i];
+        console.log('track.id=' + track.id);
+      }
+    }
+
+    var audioTracks = stream.getAudioTracks();
+    if (audioTracks) {
+      console.log('audioTracks.length=' + audioTracks.length);
+      for (var i = 0; i < audioTracks.length; i++) {
+        var track = audioTracks[i];
+        console.log('track.id=' + track.id);
+      }
+    }
+  }
+
+  function getDeviceStream(option) {
+    if ('getUserMedia' in navigator.mediaDevices) {
+      console.log('navigator.mediaDevices.getUserMadia');
+      return navigator.mediaDevices.getUserMedia(option);
+    }
+    else {
+      console.log('wrap navigator.getUserMadia with Promise');
+      return new Promise(function(resolve, reject){    
+        navigator.getUserMedia(option,
+          resolve,
+          reject
+        );
+      });      
+    }
+  }
+
+  function playVideo(element, stream) {
+    if ('srcObject' in element) {
+      if (! element.srcObject) {
+        element.srcObject = stream;
+      }
+      else {
+        console.log('stream alreay playnig, so skip');
+      }
+    }
+    else {
+      element.src = window.URL.createObjectURL(stream);
+    }
+    element.play();
+    element.volume = 0;
+  }
+
+  function pauseVideo(element) {
+    element.pause();
+    if ('srcObject' in element) {
+      element.srcObject = null;
+    }
+    else {
+      if (element.src && (element.src !== '') ) {
+        window.URL.revokeObjectURL(element.src);
+      }
+      element.src = '';
+    }
+  }
+
+  // ----- hand signaling ----
+  function onSdpText() {
+    let text = textToReceiveSdp.value;
+    text = _trimTailDoubleLF(text); // for Safar TP --> Chrome
+    if (peerConnection) {
+      let description = null;
+      if (peerConnection.remoteDescription.type === 'offer') {
+        console.log('Received re-offer text...');
+        description = new RTCSessionDescription({
+          type : 'offer',
+          sdp : text,
+        });
+        peerConnection.setRemoteDescription(description)
+        .then(function() {
+          console.log('setRemoteDescription() succsess in promise');
+          const options = { offerToReceiveAudio: true, offerToReceiveVideo: true };
+          peerConnection.createAnswer(options)
+          .then(function (sessionDescription) {
+            console.log('createAnswer() succsess in promise');
+            return peerConnection.setLocalDescription(sessionDescription);
+          }).then(function() {
+            console.log('setLocalDescription() succsess in promise');
+
+            // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+            // -- Vanilla ICE の場合には、まだSDPは送らない --
+            // -- 再生成の場合には、すぐに送る ---
+            sendSdp(peerConnection.localDescription);
+          }).catch(function(err) {
+            console.error(err);
+          });
+        }).catch(function(err) {
+          console.error('setRemoteDescription() ERROR: ', err);
+        });
+      }
+      else if (peerConnection.remoteDescription.type === 'answer') {
+        console.log('Received re-answer text...');
+        description= new RTCSessionDescription({
+          type : 'answer',
+          sdp : text,
+        });
+        peerConnection.setRemoteDescription(description)
+        .then(function() {
+          console.log('setRemoteDescription() succsess in promise');
+        }).catch(function(err) {
+          console.error('setRemoteDescription() ERROR: ', err);
+        });
+      }
+      else {
+        console.log('Received answer text...');
+        description = new RTCSessionDescription({
+          type : 'answer',
+          sdp : text,
+        });
+        setAnswer(description);
+      }
+
+    }
+    else {
+      console.log('Received offer text...');
+      let offer = new RTCSessionDescription({
+        type : 'offer',
+        sdp : text,
+      });
+      preparePeerAndSetOffer(offer);
+    }
+    textToReceiveSdp.value ='';
+  }
+ 
+  function sendSdp(sessionDescription) {
+    console.log('---sending sdp ---');
+    textForSendSdp.value = sessionDescription.sdp;
+    textForSendSdp.focus();
+    textForSendSdp.select();
+  }
+
+  function copySdp() {
+    textForSendSdp.focus();
+    textForSendSdp.select();
+    document.execCommand('copy');
+  }
+
+  function _trimTailDoubleLF(str) {
+    const trimed = str.trim();
+    return trimed + String.fromCharCode(13, 10);
+  }
+
+  function sendSdpOverDataChannel(sessionDescription) {
+    console.log('--- sending sdp over dataChannel --');
+    if (! dataChannel) {
+      return;
+    }
+    const str = JSON.stringify(sessionDescription);
+    dataChannel.send(str);
+
+    // also show in textArea
+    textForSendSdp.value = sessionDescription.sdp;
+    //textForSendSdp.focus();
+    textForSendSdp.select();
+  }
+
+  // ---------------------- connection handling -----------------------
+  function prepareNewConnection(withDataChannel) {
+    let pc_config = {"iceServers":[]};
+    let peer = new RTCPeerConnection(pc_config);
+
+    // --- on get remote stream ---
+    if ('ontrack' in peer) {
+      peer.ontrack = function(event) {
+        console.log('-- peer.ontrack()');
+        let stream = event.streams[0];
+        _logStream('ontrack', stream);
+        if (event.streams.length > 1) {
+          console.warn('got multi-stream, but play only 1 stream');
+        }
+        let track = event.track;
+        if (track.kind === 'video') {
+          playVideo(remoteVideo, stream);
+        }
+        else if (track.kind === 'audio') {
+          playVideo(remoteAudio, stream);
+          remoteAudio.volume = 0.5;
+        }
+      };
+    }
+    else {
+      peer.onaddstream = function(event) {
+        console.log('-- peer.onaddstream()');
+        let stream = event.stream;
+        playVideo(remoteVideo, stream);
+
+        _logStream('onaddstream', stream);
+      };
+    }
+
+    peer.onremovestream = function(event) {
+      console.log('--- peer.onremovestream()');
+      let stream = event.stream;
+      _logStream('onremovestream', stream);
+      stopRemoteMedia(stream);
+    };
+
+    // --- on get local ICE candidate
+    peer.onicecandidate = function (evt) {
+      if (evt.candidate) {
+        console.log(evt.candidate);
+
+        // Trickle ICE の場合は、ICE candidateを相手に送る
+        // Vanilla ICE の場合には、何もしない
+      } else {
+        console.log('empty ice event');
+
+        // Trickle ICE の場合は、何もしない
+        // Vanilla ICE の場合には、ICE candidateを含んだSDPを相手に送る
+        sendSdp(peer.localDescription);
+      }
+    };
+    
+    peer.onnegotiationneeded = function (evt) {
+      console.log('onnegotiationneeded:', evt);
+
+      if (! dataChannel) {
+        return;
+      }
+      if ( (! peerConnection.localDescription.type) || (peerConnection.localDescription.type === '')) {
+        return;
+      }
+      if ( (! peerConnection.remoteDescription.type) || (peerConnection.remoteDescription.type === '')) {
+        return;
+      }
+      
+
+      let sdp = peerConnection.localDescription;
+      options = {};
+      if (sdp.type === 'offer') {
+        peerConnection.createOffer(options)
+        .then(function (sessionDescription) {
+          console.log('re-createOffer() succsess in promise');
+          return peerConnection.setLocalDescription(sessionDescription);
+        }).then(function() {
+          console.log('re-setLocalDescription() succsess in promise');
+
+          // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+          // -- Vanilla ICE の場合には、まだSDPは送らない --
+          // -- 再生成の場合には、すぐに送る ---
+          //sendSdp(peerConnection.localDescription);
+          sendSdpOverDataChannel(peerConnection.localDescription);
+        }).catch(function(err) {
+          console.error(err);
+        });
+      }
+      /*
+      else if (sdp.type === 'answer') {
+        peerConnection.createAnswer(options)
+        .then(function (sessionDescription) {
+          console.log('createAnswer() succsess in promise');
+          return peerConnection.setLocalDescription(sessionDescription);
+        }).then(function() {
+          console.log('setLocalDescription() succsess in promise');
+
+          // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+          // -- Vanilla ICE の場合には、まだSDPは送らない --
+          // -- 再生成の場合には、すぐに送る ---
+          sendSdp(peerConnection.localDescription);
+        }).catch(function(err) {
+          console.error(err);
+        });
+      }
+      */
+      else {
+        peerConnection.createOffer(options)
+        .then(function (sessionDescription) {
+          console.log('re-createOffer2() succsess in promise');
+          return peerConnection.setLocalDescription(sessionDescription);
+        }).then(function() {
+          console.log('re-setLocalDescription2() succsess in promise');
+
+          // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+          // -- Vanilla ICE の場合には、まだSDPは送らない --
+          // -- 再生成の場合には、すぐに送る ---
+          //sendSdp(peerConnection.localDescription);
+          sendSdpOverDataChannel(peerConnection.localDescription);
+        }).catch(function(err) {
+          console.error(err);
+        });
+      }
+    };
+   
+    // -- add local stream --
+    if (withDataChannel) {
+      console.log('start for DataChannel');
+      peer.ondatachannel = function (evt) {
+        console.log('-- datachannel --');
+        if (dataChannel) {
+          console.warn('dataChannel ALREAY EXIST');
+        }
+        dc = evt.channel;
+        dc.onmessage = function (evt) {
+          const msg = evt.data;
+          console.log('Message over DataChannel:', msg);
+          const obj = JSON.parse(msg);
+
+          if (obj.type === 'offer') {
+            console.log('--got offer over dataChannel--');
+            const sendNow = true;
+            setOffer(obj, sendNow);
+          }
+          else if (obj.type === 'answer') {
+            console.log('--got answer over dataChannel--');
+            setAnswer(obj);
+          }
+        };
+
+        dc.onclose = function (evt) {
+          dataChannel = null;
+        };
+
+        dc.onerror = function (evt) {
+          console.error('DataChannel ERROR:', err);
+        };
+
+        dataChannel = dc;
+      }
+    }
+    else {
+      if (localStream) {
+        console.log('Adding local stream...');
+        if ('addTrack' in peer) {
+          console.log('use addTrack()');
+          let tracks = localStream.getTracks();
+          for (let track of tracks) {
+            let sender = peer.addTrack(track, localStream);
+          }
+        }
+        else {
+          console.log('use addStream()');  
+          peer.addStream(localStream);          
+        }
+      }
+      else {
+        console.warn('no local stream, but continue.');
+      }
+    }
+
+    return peer;
+  }
+
+  function prepareDataChannel(peer) {
+    const dc = peer.createDataChannel("channel");
+    dc.onmessage = function (evt) {
+      const msg = evt.data;
+      console.log('Message over DataChannel:', msg);
+      const obj = JSON.parse(msg);
+
+      if (obj.type === 'offer') {
+        console.log('--got offer over dataChannel2--');
+        const sendNow = true;
+        setOffer(obj, sendNow);
+      }
+      else if (obj.type === 'answer') {
+        console.log('--got answer over dataChannel2--');
+        setAnswer(obj);            
+      }
+    };
+
+    dc.onclose = function (evt) {
+      dataChannel = null;
+    };
+
+    dc.onerror = function (evt) {
+      console.error('DataChannel ERROR:', err);
+    };
+
+    dataChannel = dc;
+    return dc;
+  }
+
+  function makeOffer(withDataChannel) {
+    let options = {};
+    peerConnection = prepareNewConnection(withDataChannel);
+    if (withDataChannel) {
+      prepareDataChannel(peerConnection);
+    }
+    else {
+      if (localStream) {
+        if (isSendOnly()) {
+          console.log('-- try sendonly ---');
+          options = { offerToReceiveAudio: false, offerToReceiveVideo: false };
+        }
+      }
+      else {
+        // -- no localStream, so receive --
+        console.log('-- try recvonly ---');
+
+        options = { offerToReceiveAudio: true, offerToReceiveVideo: true };
+
+        if ('addTransceiver' in peerConnection) {
+          console.log('-- use addTransceiver() for recvonly --');
+          peerConnection.addTransceiver('video').setDirection('recvonly');
+          peerConnection.addTransceiver('audio').setDirection('recvonly');
+        }
+      }
+    }
+
+    peerConnection.createOffer(options)
+    .then(function (sessionDescription) {
+      console.log('createOffer() succsess in promise');
+      return peerConnection.setLocalDescription(sessionDescription);
+    }).then(function() {
+      console.log('setLocalDescription() succsess in promise');
+
+      // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+      // -- Vanilla ICE の場合には、まだSDPは送らない --
+      //sendSdp(peerConnection.localDescription);
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+
+  function preparePeerAndSetOffer(sessionDescription) {
+    const useDataChannel = true;
+    if (peerConnection) {
+      console.error('peerConnection alreay exist!');
+    }
+    peerConnection = prepareNewConnection(useDataChannel);
+
+    const sendNow = false;
+    setOffer(sessionDescription, sendNow);
+    /*--
+    peerConnection.setRemoteDescription(sessionDescription)
+    .then(function() {
+      console.log('setRemoteDescription(offer) succsess in promise');
+      makeAnswer();
+    }).catch(function(err) {
+      console.error('setRemoteDescription(offer) ERROR: ', err);
+    });
+    --*/
+  }
+
+  function setOffer(sessionDescription, sendNow) {
+    peerConnection.setRemoteDescription(sessionDescription)
+    .then(function() {
+      console.log('setRemoteDescription(offer) succsess in promise');
+      makeAnswer(sendNow);
+    }).catch(function(err) {
+      console.error('setRemoteDescription(offer) ERROR: ', err);
+    });    
+  }
+  
+  function makeAnswer(sendNow) {
+    console.log('sending Answer. Creating remote session description...' );
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+
+    let options = {};
+    /*
+    if (! localStream) {
+      //options = { offerToReceiveAudio: true, offerToReceiveVideo: true }
+
+      if ('addTransceiver' in peerConnection) {
+        console.log('-- use addTransceiver() for recvonly --');
+        peerConnection.addTransceiver('video').setDirection('recvonly');
+        peerConnection.addTransceiver('audio').setDirection('recvonly');
+      }
+    }
+    */
+
+    peerConnection.createAnswer(options)
+    .then(function (sessionDescription) {
+      console.log('createAnswer() succsess in promise');
+      return peerConnection.setLocalDescription(sessionDescription);
+    }).then(function() {
+      console.log('setLocalDescription() succsess in promise');
+
+      // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+      // -- Vanilla ICE の場合には、まだSDPは送らない --
+      if (sendNow) {
+        sendSdpOverDataChannel(peerConnection.localDescription);
+      }
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+
+  function setAnswer(sessionDescription) {
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+
+    peerConnection.setRemoteDescription(sessionDescription)
+    .then(function() {
+      console.log('setRemoteDescription(answer) succsess in promise');
+    }).catch(function(err) {
+      console.error('setRemoteDescription(answer) ERROR: ', err);
+    });
+  }
+  
+  // start PeerConnection
+  function connect(withDataChannel) {
+    if (! peerConnection) {
+      console.log('make Offer');
+      makeOffer(withDataChannel);
+    }
+    else {
+      console.warn('peer already exist.');
+    }
+  }
+
+  // close PeerConnection
+  function hangUp() {
+    if (peerConnection) {
+      console.log('Hang up.');
+      peerConnection.close();
+      peerConnection = null;
+      pauseVideo(remoteVideo);
+    }
+    else {
+      console.warn('peer NOT exist.');
+    }
+  }
+
+  function sendData(data) {
+    if (dataChannel) {
+      const str = JSON.stringify(data);
+      dataChannel.send(str);
+    }
+  }
+
+  function addTrack(kind) {
+    if (! localStream) {
+      return;
+    }
+    if (! peerConnection) {
+      return;
+    }
+
+    let track = null;
+    if (kind === 'video') {
+      track = localStream.getVideoTracks()[0];
+    }
+    else if (kind === 'audio') {
+      track = localStream.getAudioTracks()[0];      
+    }
+
+    let sender = peerConnection.addTrack(track);
+    senders[kind] = sender;
+  }
+
+  function removeTrack(kind) {
+    if (! localStream) {
+      return;
+    }
+    if (! peerConnection) {
+      return;
+    }
+
+    let sender = senders[kind];
+    if (sender) {
+      peerConnection.removeTrack(sender);
+      delete senders[kind];
+      sender = null;
+    }
+    else {
+      console.warn('NO sender for kind=' + kind);
+    }
+  }
+
+  function stopRemoteMedia(stream) {
+    if (! stream) {
+      return;
+    }
+
+    if (remoteVideo.srcObject) {
+      if (remoteVideo.srcObject.id === stream.id) {
+        pauseVideo(remoteVideo);
+      }
+      else if (remoteAudio.srcObject.id === stream.id) {
+        pauseVideo(remoteAudio);
+      }
+    }
+  }
+</script>
+</html>
