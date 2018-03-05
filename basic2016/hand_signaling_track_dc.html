@@ -358,10 +358,10 @@
       if (! dataChannel) {
         return;
       }
-      if ( (! peerConnection.localDescription.type) || (peerConnection.localDescription.type === '')) {
+      if ( (! peer.localDescription) || (! peer.localDescription.type) || (peer.localDescription.type === '')) {
         return;
       }
-      if ( (! peerConnection.remoteDescription.type) || (peerConnection.remoteDescription.type === '')) {
+      if ( (! peer.remoteDescription) || (! peer.remoteDescription.type) || (peer.remoteDescription.type === '')) {
         return;
       }
       
@@ -390,18 +390,18 @@
       }
       else {
       ---*/
-        peerConnection.createOffer(options)
+        peer.createOffer(options)
         .then(function (sessionDescription) {
           console.log('createOffer() succsess in promise');
-          return peerConnection.setLocalDescription(sessionDescription);
+          return peer.setLocalDescription(sessionDescription);
         }).then(function() {
           console.log('setLocalDescription() succsess in promise');
 
           // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
           // -- Vanilla ICE の場合には、まだSDPは送らない --
           // -- 再生成の場合には、すぐに送る ---
-          //sendSdp(peerConnection.localDescription);
-          sendSdpOverDataChannel(peerConnection.localDescription);
+          //sendSdp(peer.localDescription);
+          sendSdpOverDataChannel(peer.localDescription);
         }).catch(function(err) {
           console.error(err);
         });
