@@ -277,9 +277,9 @@
     // --- on get remote stream ---
     if ('ontrack' in peer) {
       peer.ontrack = function(event) {
-        console.log('-- peer.ontrack()');
+        console.log('-- peer.ontrack(): track kind=' + event.track.kind);
         let stream = event.streams[0];
-        _logStream('ontrack', stream);
+        _logStream('ontrack stream', stream);
         if (event.streams.length > 1) {
           console.warn('got multi-stream, but play only 1 stream');
         }
@@ -318,6 +318,11 @@
 
         };
       };
+
+      peer.onaddstream = function(event) {
+        // -- log only --
+        console.log('-- peer.onaddstream(), but do nothing');
+      }
     }
     else {
       peer.onaddstream = function(event) {
