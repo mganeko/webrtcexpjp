@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="ja">
+<head>
+ <meta charset="UTF-8" />
+ <title>Hand & DataCannel Signaling</title>
+</head>
+<body>
+  DataChannel signaling after Hand 2018<br />
+  <button type="button" onclick="connect(true);">Connect Datachannel by hand</button>
+  <button type="button" onclick="hangUp();">Hang Up</button>
+  &nbsp;
+  <button type="button" onclick="sendData({ type: 'text', body: 'hello' });">send hello</button>
+  <br />
+  <p>SDP to send:&nbsp;
+    <button type="button" onclick="copySdp();">copy local SDP</button><br />
+    <textarea id="text_for_send_sdp" rows="5" cols="60" readonly="readonly">SDP to send</textarea>
+  </p>
+  <p>SDP to receive:&nbsp;
+    <button type="button" onclick="onSdpText();">Receive remote SDP</button><br />
+    <textarea id="text_for_receive_sdp" rows="5" cols="60"></textarea>
+  </p>
+</body>
+<script>
+  // TODO
+  //   - async/await
+  //   - gUM
+  //   - addTrack / ontrack (same stream / different stream)
+  
+
+  let localStream = null;
+  let peerConnection = null;
+  let dataChannel = null;
+  let textForSendSdp = document.getElementById('text_for_send_sdp');
+  let textToReceiveSdp = document.getElementById('text_for_receive_sdp');
+  let senders = [];
+
+  function _logStream(msg, stream) {
+    console.log(msg + ': id=' + stream.id);
+    let videoTracks = stream.getVideoTracks();
+    if (videoTracks) {
+      console.log('videoTracks.length=' + videoTracks.length);
+      videoTracks.forEach(function(track) {
+        console.log(' track.id=' + track.id);
+      });
+    }
+    
+    let audioTracks = stream.getAudioTracks();
+    if (audioTracks) {
+      console.log('audioTracks.length=' + audioTracks.length);
+      audioTracks.forEach(function(track) {
+        console.log(' track.id=' + track.id);
+      });
+    }
+  }
+
+  function isOfferSide() {
+    if (peerConnection) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+
+  // ----- hand signaling ----
+  function onSdpText() {
+    let text = textToReceiveSdp.value;
+    text = _trimTailDoubleLF(text); // for Safar TP --> Chrome
+    if (isOfferSide()) {
+      console.log('Received answer text...');
+      description = new RTCSessionDescription({
+        type : 'answer',
+        sdp : text,
+      });
+      setAnswer(description);
+    }
+    else {
+      console.log('Received offer text...');
+      let offer = new RTCSessionDescription({
+        type : 'offer',
+        sdp : text,
+      });
+      if (! peerConnection) {
+        const withDataChannel = true;
+        peerConnection = prepareNewConnection(withDataChannel);
+      }
+      const sendNow = false;
+      setOffer(offer, sendNow);
+    }
+    textToReceiveSdp.value ='';
+  }
+ 
+  function sendSdp(sessionDescription) {
+    console.log('---sending sdp ---');
+    textForSendSdp.value = sessionDescription.sdp;
+    textForSendSdp.focus();
+    textForSendSdp.select();
+  }
+
+  function copySdp() {
+    textForSendSdp.focus();
+    textForSendSdp.select();
+    document.execCommand('copy');
+  }
+
+  function _trimTailDoubleLF(str) {
+    const trimed = str.trim();
+    return trimed + String.fromCharCode(13, 10);
+  }
+
+  function sendSdpOverDataChannel(sessionDescription) {
+    console.log('--- sending sdp over dataChannel --');
+    if (! dataChannel) {
+      return;
+    }
+    const str = JSON.stringify(sessionDescription);
+    dataChannel.send(str);
+
+    // also show in textArea
+    textForSendSdp.value = sessionDescription.sdp;
+    textForSendSdp.select();
+  }
+
+  function prepareNewConnection(withDataChannel) {
+    let pc_config = {"iceServers":[]};
+    let peer = new RTCPeerConnection(pc_config);
+
+
+    // --- on get local ICE candidate
+    peer.onicecandidate = function (evt) {
+      if (evt.candidate) {
+        console.log(evt.candidate);
+
+        // Trickle ICE の場合は、ICE candidateを相手に送る
+        // Vanilla ICE の場合には、何もしない
+      } else {
+        console.log('empty ice event');
+
+        // Trickle ICE の場合は、何もしない
+        // Vanilla ICE の場合には、ICE candidateを含んだSDPを相手に送る
+        sendSdp(peer.localDescription);
+      }
+    };
+    
+    peer.onnegotiationneeded = function (evt) {
+      console.log('onnegotiationneeded:', evt);
+    }
+
+    if (withDataChannel) {
+      console.log('start for DataChannel');
+      peer.ondatachannel = function (evt) {
+        console.log('-- datachannel --');
+        if (dataChannel) {
+          console.warn('dataChannel ALREAY EXIST');
+        }
+        dc = evt.channel;
+        setupDataChannel(dc);
+        dataChannel = dc;
+      }
+    }
+
+    return peer;
+  }
+
+  function prepareDataChannel(peer) {
+    const dc = peer.createDataChannel("channel");
+    setupDataChannel(dc);
+    dataChannel = dc;
+    return dc;
+  }
+
+  function setupDataChannel(dc) {
+    dc.onmessage = function (evt) {
+      const msg = evt.data;
+      const obj = JSON.parse(msg);
+      if (obj.type === 'text') {
+        console.log('text Message over DataChannel:', msg);
+      }
+      else if (obj.type === 'offer') {
+        console.log('--got offer over dataChannel--');
+        const sendNow = true;
+        setOffer(obj, sendNow);
+      }
+      else if (obj.type === 'answer') {
+        console.log('--got answer over dataChannel--');
+        setAnswer(obj);            
+      }
+    };
+
+    dc.onopen = function (evt) {
+      console.log('datachannel open');
+    };
+    dc.onclose = function (evt) {
+      dataChannel = null;
+    };
+    dc.onerror = function (evt) {
+      console.error('DataChannel ERROR:', err);
+    };
+  }
+
+  function startOffer(withDataChannel) {
+    peerConnection = prepareNewConnection(withDataChannel);
+    if (withDataChannel) {
+      prepareDataChannel(peerConnection);
+    }
+    /*
+    let options = {};
+    peerConnection.createOffer(options)
+    .then(function (sessionDescription) {
+      console.log('createOffer() succsess in promise');
+      return peerConnection.setLocalDescription(sessionDescription);
+    }).then(function() {
+      console.log('setLocalDescription() succsess in promise');
+
+      // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+      // -- Vanilla ICE の場合には、まだSDPは送らない --
+      //sendSdp(peerConnection.localDescription);
+    }).catch(function(err) {
+      console.error(err);
+    });
+    */
+
+    makeOffer();
+  }
+
+  function makeOffer() {
+    let options = {};
+    peerConnection.createOffer(options)
+    .then(function (sessionDescription) {
+      console.log('createOffer() succsess in promise');
+      return peerConnection.setLocalDescription(sessionDescription);
+    }).then(function() {
+      console.log('setLocalDescription() succsess in promise');
+
+      // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+      // -- Vanilla ICE の場合には、まだSDPは送らない --
+      //sendSdp(peerConnection.localDescription);
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+
+
+  function setOffer(sessionDescription, sendNow) {
+    peerConnection.setRemoteDescription(sessionDescription)
+    .then(function() {
+      console.log('setRemoteDescription(offer) succsess in promise');
+      makeAnswer(sendNow);
+    }).catch(function(err) {
+      console.error('setRemoteDescription(offer) ERROR: ', err);
+    });    
+  }
+
+  function setAnswer(sessionDescription) {
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+
+    peerConnection.setRemoteDescription(sessionDescription)
+    .then(function() {
+      console.log('setRemoteDescription(answer) succsess in promise');
+    }).catch(function(err) {
+      console.error('setRemoteDescription(answer) ERROR: ', err);
+    });
+  }
+
+  function makeAnswer(sendNow) {
+    console.log('sending Answer. Creating remote session description...' );
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+
+    let options = {};
+
+    peerConnection.createAnswer(options)
+    .then(function (sessionDescription) {
+      console.log('createAnswer() succsess in promise');
+      return peerConnection.setLocalDescription(sessionDescription);
+    }).then(function() {
+      console.log('setLocalDescription() succsess in promise');
+
+      // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+      // -- Vanilla ICE の場合には、まだSDPは送らない --
+      if (sendNow) {
+        sendSdpOverDataChannel(peerConnection.localDescription);
+      }
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+
+  // start PeerConnection
+  function connect(withDataChannel) {
+    if (! peerConnection) {
+      console.log('start Offer');
+      startOffer(withDataChannel);
+    }
+    else {
+      console.warn('peer already exist.');
+    }
+  }
+
+  // close PeerConnection
+  function hangUp() {
+    if (peerConnection) {
+      console.log('Hang up.');
+      peerConnection.close();
+      peerConnection = null;
+      //pauseVideo(remoteVideo);
+    }
+    else {
+      console.warn('peer NOT exist.');
+    }
+  }
+
+  function sendData(data) {
+    if (dataChannel) {
+      const str = JSON.stringify(data);
+      dataChannel.send(str);
+    }
+  }
+
+</script>
+</html>
