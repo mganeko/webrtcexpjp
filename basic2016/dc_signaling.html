@@ -10,20 +10,22 @@
   <button type="button" onclick="hangUp();">Hang Up</button>
   &nbsp;
   <button type="button" onclick="sendData({ type: 'text', body: 'hello' });">send hello</button>
-  &nbsp;
+  <br />
   <button type="button" onclick="startVideo();">Start Media</button>
   <button type="button" onclick="stopVideo();">Stop Media</button>
-  <br />
+  &nbsp;
   <button type="button" onclick="addTrack('video');">add Video</button>
   <button type="button" onclick="addTrack('audio');">add Audo</button>
   <button type="button" onclick="removeTrack('video');">remove Video</button>
   <button type="button" onclick="removeTrack('audio');">remove Audo</button>
   <div>
-      <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
-      <video id="remote_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
-    </div>
+    <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+    <video id="remote_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+  </div>
   <p>SDP to send:&nbsp;
-    <button type="button" onclick="copySdp();">copy local SDP</button><br />
+    <button type="button" onclick="copySdp();">copy local SDP</button>
+    <input type="checkbox" id="use_broadcast_channel" checked="1">use BroadcastChannel(without hand)</input>
+    <br />
     <textarea id="text_for_send_sdp" rows="5" cols="60" readonly="readonly">SDP to send</textarea>
   </p>
   <p>SDP to receive:&nbsp;
@@ -33,10 +35,12 @@
 </body>
 <script>
   // TODO
-  //   - async/await
-  //   - gUM
-  //   - addTrack / ontrack (same stream / different stream)
+  //   - DONE: async/await
+  //   - DONE: gUM
+  //   - DONE: addTrack / ontrack (same stream)
+  //   - addTrack / ontrack  (different stream)
   //   - sudo video with canvas, sudo auido with webaudio 
+  //   - broadband channel
 
 
   let localStream = null;
@@ -48,6 +52,7 @@
   const textForSendSdp = document.getElementById('text_for_send_sdp');
   const textToReceiveSdp = document.getElementById('text_for_receive_sdp');
   let senders = [];
+
 
   function _logStream(msg, stream) {
     console.log(msg + ': id=' + stream.id);
@@ -76,6 +81,64 @@
       return false;
     }
   }
+
+  // --- broadcast channel
+  const channelName = 'myroom';
+  const broadcast = new BroadcastChannel(channelName);
+
+  function useBroadcastChannel() {
+    let boradcastChecked = document.getElementById('use_broadcast_channel').checked;
+    if (! boradcastChecked) {
+      return false; // do not use broadcastChannel
+    }
+
+    if (! dataChannel) {
+      return true; // no datachannel, use broadcastChannel
+    }
+
+    if (dataChannel.readyState === 'open') {
+      return false; // datachannel ready, use it
+    }
+
+    return true;
+  }
+
+  // メッセージのハンドリング
+  broadcast.onmessage = function(evt) {
+    let messageObject = JSON.parse(evt.data);
+
+    // ... メッセージに応じた処理 ...
+    if (messageObject.type === 'offer') {
+      console.log('get Offer over broadcastChannel');
+      textToReceiveSdp.value = messageObject.sdp;
+      let offer = new RTCSessionDescription({
+        type : messageObject.type,
+        sdp : messageObject.sdp,
+      });
+      if (! peerConnection) {
+        const withDataChannel = true;
+        peerConnection = prepareNewConnection(withDataChannel);
+      }
+      const sendNow = false;
+      setOffer(offer, sendNow);      
+    }
+    else if (messageObject.type === 'answer') {
+      console.log('Received answer over broadcastChannel');
+      textToReceiveSdp.value = messageObject.sdp;
+      description = new RTCSessionDescription({
+        type : messageObject.type,
+        sdp : messageObject.sdp,
+      });
+      setAnswer(description);
+    }
+  }
+
+  // メッセージの送信
+  //let messageString = JSON.stringify(messageObject);
+  //broadcast.postMessage(messageString );
+
+  // 切断
+  //broadcast.close();
 
   // ----- hand signaling ----
   function onSdpText() {
@@ -110,6 +173,11 @@
     textForSendSdp.value = sessionDescription.sdp;
     textForSendSdp.focus();
     textForSendSdp.select();
+
+    if (useBroadcastChannel()) {
+      const messageString = JSON.stringify(sessionDescription);
+      broadcast.postMessage(messageString);
+    }
   }
 
   function copySdp() {
@@ -138,8 +206,8 @@
 
   function prepareNewConnection(withDataChannel) {
     let pc_config = {"iceServers":[]};
+    pc_config.sdpSemantics = "unified-plan";
     let peer = new RTCPeerConnection(pc_config);
-
 
     // --- on get local ICE candidate
     peer.onicecandidate = function (evt) {
