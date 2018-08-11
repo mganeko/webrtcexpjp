@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="ja">
+<head>
+ <meta charset="UTF-8" />
+ <title>Hand & DataCannel Signaling</title>
+</head>
+<body>
+  <h4>DataChannel signaling, multi-stream 2018</h4>
+  <input type="checkbox" id="use_broadcast_channel" checked="1">use BroadcastChannel</input>
+  &nbsp;
+  <input type="checkbox" id="use_unified_plan" checked="1">use Unified Plan (Firefox and Chrome 70-)</input>
+  <br />
+  <button type="button" onclick="connect(true);">Connect DataChannel</button>
+  <button type="button" onclick="hangUp();">Hang Up</button>
+  &nbsp;
+  <button type="button" onclick="sendData({ type: 'text', body: 'hello' });">send hello</button>
+  <h4>local Meida</h4>
+  <button type="button" onclick="startVideo();">Start Media</button>
+  <button type="button" onclick="stopVideo();">Stop Media</button>
+  &nbsp;
+  <button type="button" onclick="addTrack('video', 0);">add Video</button>
+  <button type="button" onclick="addTrack('audio', 0);">add Audo</button>
+  <button type="button" onclick="removeTrack('video', 0);">remove Video</button>
+  <button type="button" onclick="removeTrack('audio', 0);">remove Audo</button>
+  <br />
+  <button type="button" onclick="addTrack('video', 1);">add Video of Canvas</button>
+  <button type="button" onclick="addTrack('audio', 2);">add Audio of WebAudio</button>
+  <button type="button" onclick="removeTrack('video', 1);">remove Video of Canvas</button>
+  <button type="button" onclick="removeTrack('audio', 2);">remove Audio of WebAudio</button>
+  <div style="display:grid; grid-template-columns: 200px 200px 200px">
+    <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+    <canvas width="160" height="120" id="local_canvas" style="border: solid 1px black"></canvas>
+    <audio id="local_audio" autoplay controls style="border: 1px solid black;"></audio>
+  </div>
+  <h4>remote Meida</h4>
+  <div id="remote_container">
+    <!--
+    <video id="remote_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+    -->
+  </div>
+  <p>SDP to send:&nbsp;
+    <button type="button" onclick="copySdp();">copy local SDP</button>
+    <br />
+    <textarea id="text_for_send_sdp" rows="5" cols="60" readonly="readonly">SDP to send</textarea>
+  </p>
+  <p>SDP to receive:&nbsp;
+    <button type="button" onclick="onSdpText();">Receive remote SDP</button><br />
+    <textarea id="text_for_receive_sdp" rows="5" cols="60"></textarea>
+  </p>
+</body>
+<script>
+  // TODO
+  //   - DONE: async/await
+  //   - DONE: gUM
+  //   - DONE: addTrack / ontrack (same stream)
+  //   - addTrack / ontrack  (different stream)
+  //   - sudo video with canvas, sudo auido with webaudio 
+  //   - broadband channel
+
+
+  let localStream = null;
+  let remoteStream = null;
+  let peerConnection = null;
+  let dataChannel = null;
+  const localVideo = document.getElementById('local_video');
+  const localAudio = document.getElementById('local_audio');
+  //const remoteVideo = document.getElementById('remote_video');
+  const textForSendSdp = document.getElementById('text_for_send_sdp');
+  const textToReceiveSdp = document.getElementById('text_for_receive_sdp');
+  let senders = [];
+
+  let remoteStreams = [];
+  let remoteVideos = [];
+  const remoteContainer = document.getElementById('remote_container');
+
+  function _logStream(msg, stream) {
+    if (! stream) {
+      console.warn(msg + ': stream is NULL');
+      return;
+    }
+    console.log(msg + ': id=' + stream.id);
+    let videoTracks = stream.getVideoTracks();
+    if (videoTracks) {
+      console.log('videoTracks.length=' + videoTracks.length);
+      videoTracks.forEach(function(track) {
+        console.log(' track.id=' + track.id);
+      });
+    }
+    
+    let audioTracks = stream.getAudioTracks();
+    if (audioTracks) {
+      console.log('audioTracks.length=' + audioTracks.length);
+      audioTracks.forEach(function(track) {
+        console.log(' track.id=' + track.id);
+      });
+    }
+  }
+
+  function isOfferSide() {
+    if (peerConnection) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+
+  function useUnifiedPlan() {
+    const unifiedPlanCheck = document.getElementById('use_unified_plan').checked;
+    return unifiedPlanCheck;
+  }
+
+  // --- broadcast channel
+  const channelName = 'myroom';
+  const broadcast = new BroadcastChannel(channelName);
+
+  function useBroadcastChannel() {
+    const boradcastChecked = document.getElementById('use_broadcast_channel').checked;
+    if (! boradcastChecked) {
+      return false; // do not use broadcastChannel
+    }
+
+    if (! dataChannel) {
+      return true; // no datachannel, use broadcastChannel
+    }
+
+    if (dataChannel.readyState === 'open') {
+      return false; // datachannel ready, use it
+    }
+
+    return true;
+  }
+
+  // メッセージのハンドリング
+  broadcast.onmessage = function(evt) {
+    let messageObject = JSON.parse(evt.data);
+
+    // ... メッセージに応じた処理 ...
+    if (messageObject.type === 'offer') {
+      console.log('get Offer over broadcastChannel');
+      textToReceiveSdp.value = messageObject.sdp;
+      let offer = new RTCSessionDescription({
+        type : messageObject.type,
+        sdp : messageObject.sdp,
+      });
+      if (! peerConnection) {
+        const withDataChannel = true;
+        peerConnection = prepareNewConnection(withDataChannel);
+      }
+      const sendNow = false;
+      setOffer(offer, sendNow);      
+    }
+    else if (messageObject.type === 'answer') {
+      console.log('Received answer over broadcastChannel');
+      textToReceiveSdp.value = messageObject.sdp;
+      description = new RTCSessionDescription({
+        type : messageObject.type,
+        sdp : messageObject.sdp,
+      });
+      setAnswer(description);
+    }
+  }
+
+  // メッセージの送信
+  //let messageString = JSON.stringify(messageObject);
+  //broadcast.postMessage(messageString );
+
+  // 切断
+  //broadcast.close();
+
+  // ----- hand signaling ----
+  function onSdpText() {
+    let text = textToReceiveSdp.value;
+    text = _trimTailDoubleLF(text); // for Safar TP --> Chrome
+    if (isOfferSide()) {
+      console.log('Received answer text...');
+      description = new RTCSessionDescription({
+        type : 'answer',
+        sdp : text,
+      });
+      setAnswer(description);
+    }
+    else {
+      console.log('Received offer text...');
+      let offer = new RTCSessionDescription({
+        type : 'offer',
+        sdp : text,
+      });
+      if (! peerConnection) {
+        const withDataChannel = true;
+        peerConnection = prepareNewConnection(withDataChannel);
+      }
+      const sendNow = false;
+      setOffer(offer, sendNow);
+    }
+    textToReceiveSdp.value ='';
+  }
+ 
+  function sendSdp(sessionDescription) {
+    console.log('---sending sdp ---');
+    textForSendSdp.value = sessionDescription.sdp;
+    textForSendSdp.focus();
+    textForSendSdp.select();
+
+    if (useBroadcastChannel()) {
+      const messageString = JSON.stringify(sessionDescription);
+      broadcast.postMessage(messageString);
+    }
+  }
+
+  function copySdp() {
+    textForSendSdp.focus();
+    textForSendSdp.select();
+    document.execCommand('copy');
+  }
+
+  function _trimTailDoubleLF(str) {
+    const trimed = str.trim();
+    return trimed + String.fromCharCode(13, 10);
+  }
+
+  function sendSdpOverDataChannel(sessionDescription) {
+    console.log('--- sending sdp over dataChannel --');
+    if (! dataChannel) {
+      return;
+    }
+    const str = JSON.stringify(sessionDescription);
+    dataChannel.send(str);
+
+    // also show in textArea
+    textForSendSdp.value = sessionDescription.sdp;
+    textForSendSdp.select();
+  }
+
+  function prepareNewConnection(withDataChannel) {
+    let pc_config = {"iceServers":[]};
+    if (useUnifiedPlan()) {
+      pc_config.sdpSemantics = "unified-plan";
+    }
+    let peer = new RTCPeerConnection(pc_config);
+
+    // --- on get local ICE candidate
+    peer.onicecandidate = function (evt) {
+      if (evt.candidate) {
+        console.log(evt.candidate);
+
+        // Trickle ICE の場合は、ICE candidateを相手に送る
+        // Vanilla ICE の場合には、何もしない
+      } else {
+        console.log('empty ice event');
+
+        // Trickle ICE の場合は、何もしない
+        // Vanilla ICE の場合には、ICE candidateを含んだSDPを相手に送る
+        sendSdp(peer.localDescription);
+      }
+    };
+    
+    peer.onnegotiationneeded = function (evt) {
+      console.log('onnegotiationneeded:', evt);
+      if (! dataChannel) {
+        return;
+      }
+      if ( (! peer.localDescription) || (! peer.localDescription.type) || (peer.localDescription.type === '')) {
+        console.warn('localDescription NOT READY');
+        return;
+      }
+      if ( (! peer.remoteDescription) || (! peer.remoteDescription.type) || (peer.remoteDescription.type === '')) {
+        console.warn('remoteDescription NOT READY');
+        return;
+      }
+
+      const sendNow = true;
+      makeOffer(sendNow);
+    }
+
+    peer.ontrack = function(event) {
+      console.log('-- peer.ontrack(): track kind=' + event.track.kind);
+      let stream = event.streams[0];
+      if (! stream) {
+        console.warn('stream NULL in peer.ontrack()');
+        return;
+      }
+      _logStream('ontrack stream', stream);
+      if (event.streams.length > 1) {
+        console.warn('got multi-stream count=' + event.streams.length + ', but play only 1 stream');
+        let stream2 = event.streams[1];
+        _logStream('ontrack stream2', stream);
+      }
+      let track = event.track;
+
+      addRemoteTrack(track.kind, track, stream);
+
+      /*--
+      if (track.kind === 'video') {
+        if (! remoteStream) {
+          remoteStream = stream;
+          remoteVideo.srcObject = stream;
+          remoteVideo.play();
+          remoteVideo.volume = 0;
+        }
+        else if (remoteStream === stream) {
+          console.log('same remoteStream, ontrack(video)');
+        }
+        else {
+          console.warn('different remoteStream, ontrack(video)');
+        }
+      }
+      else if (track.kind === 'audio') {
+        if (! remoteStream) {
+          remoteStream = stream;
+          remoteVideo.srcObject = stream;
+          remoteVideo.play();
+          remoteVideo.volume = 0;
+        }
+        else if (remoteStream === stream) {
+          console.log('same remoteStream, ontrack(audio)');
+        }
+        else {
+          console.warn('different remoteStream, ontrack(audio)');
+        }
+      }
+      --*/
+
+      stream.onaddtrack = function (evt) {
+        _logStream('stream.onaddtrack', stream);
+        const track = evt.track;
+        console.log('stream.onaddtrack(): track kind=', track.kind);
+        if (track.kind === 'video') {
+          //playVideo(remoteVideo, stream);
+        }
+        else if (track.kind === 'audio') {
+          //playVideo(remoteAudio, stream);
+          //remoteAudio.volume = 0.5;
+        }
+      };
+      stream.onremovetrack = function (evt) {
+        _logStream('stream.onremovetrack', stream);
+        //console.log('stream.onremovetrack():', evt);
+        const track = evt.track;
+        console.log('stream.onremovetrack(): track kind=', track.kind);
+        const tracks = stream.getTracks();
+        const trackCount = tracks.length;
+        console.log('onremovetrack tracks.lenght=' + trackCount);
+        /*
+        if (trackCount < 1) {
+          console.log('----remote stream stoped---');
+          remoteVideo.pause();
+          remoteVideo.srcObject = null;
+          remoteStream = null;
+        }
+        */
+
+        removeRemoteTrack(track.kind, track, stream);
+      };
+    }
+      
+    if (withDataChannel) {
+      console.log('start for DataChannel');
+      peer.ondatachannel = function (evt) {
+        console.log('-- datachannel --');
+        if (dataChannel) {
+          console.warn('dataChannel ALREAY EXIST');
+        }
+        dc = evt.channel;
+        setupDataChannel(dc);
+        dataChannel = dc;
+      }
+    }
+
+    return peer;
+  }
+
+  function prepareDataChannel(peer) {
+    const dc = peer.createDataChannel("channel");
+    setupDataChannel(dc);
+    dataChannel = dc;
+    return dc;
+  }
+
+  function setupDataChannel(dc) {
+    dc.onmessage = function (evt) {
+      const msg = evt.data;
+      const obj = JSON.parse(msg);
+      if (obj.type === 'text') {
+        console.log('text Message over DataChannel:', msg);
+        if (obj.body === 'hello') {
+          sendData({ type: 'text', body: 'reply to hello'});
+        }
+      }
+      else if (obj.type === 'offer') {
+        console.log('--got offer over dataChannel--');
+        const sendNow = true;
+        setOffer(obj, sendNow);
+      }
+      else if (obj.type === 'answer') {
+        console.log('--got answer over dataChannel--');
+        setAnswer(obj);            
+      }
+    };
+
+    dc.onopen = function (evt) {
+      console.log('datachannel open');
+    };
+    dc.onclose = function (evt) {
+      dataChannel = null;
+    };
+    dc.onerror = function (evt) {
+      console.error('DataChannel ERROR:', err);
+    };
+  }
+
+  function startOffer(withDataChannel) {
+    peerConnection = prepareNewConnection(withDataChannel);
+    if (withDataChannel) {
+      prepareDataChannel(peerConnection);
+    }
+    const sendNow = false;
+    makeOffer(sendNow);
+  }
+
+  async function makeOffer(sendNow) {
+    let options = {};
+    try {
+      const sessionDescription = await peerConnection.createOffer(options);
+      await peerConnection.setLocalDescription(sessionDescription);
+
+      // -- Trickle ICE の場合は、初期SDPを相手に送る -- 
+      // -- Vanilla ICE の場合には、まだSDPは送らない --
+      //sendSdp(peerConnection.localDescription);
+
+      // --- sendNow = true が指定されたら、すぐにdataChannel越しに送る --
+      if (sendNow) {
+        sendSdpOverDataChannel(peerConnection.localDescription);
+      }
+    }
+    catch (err) {
+      console.error(err);
+    }
+  }
+
+
+  async function setOffer(sessionDescription, sendNow) {
+    try {
+      await peerConnection.setRemoteDescription(sessionDescription);
+      await makeAnswer(sendNow);
+    }
+    catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function setAnswer(sessionDescription) {
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+
+    await peerConnection.setRemoteDescription(sessionDescription).catch(err => console.error(err));
+  }
+
+  async function makeAnswer(sendNow) {
+    console.log('sending Answer. Creating remote session description...' );
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+
+    let options = {};
+    try {
+      const sessionDescription = await peerConnection.createAnswer(options);
+      await peerConnection.setLocalDescription(sessionDescription);
+      if (sendNow) {
+        sendSdpOverDataChannel(peerConnection.localDescription);
+      }
+    }
+    catch (err) {
+      console.error(err);
+    }
+  }
+
+  function addTrack(kind, index) {
+    if (! peerConnection) {
+      return;
+    }
+
+    let stream = null;
+    if (index === 0) {
+      stream = localStream;
+    }
+    else if (index === 1) {
+      stream = canvasStream;
+    }
+    else if (index === 2) {
+      stream = audioStream;
+    }
+    if (! stream) {
+      return;
+    }
+
+    let track = null;
+    if (kind === 'video') {
+      track = stream.getVideoTracks()[0];
+    }
+    else if (kind === 'audio') {
+      track = stream.getAudioTracks()[0];      
+    }
+
+    // let sender = peerConnection.addTrack(track); // another stream in chrome, error in firefox
+    let sender = peerConnection.addTrack(track, stream); // same stream
+    senders[kind + '_' + index] = sender;
+  }
+
+  function removeTrack(kind, index) {
+    console.log('removing track kind=' + kind + ' ,index=' + index);
+    if (! peerConnection) {
+      return;
+    }
+
+    const key = kind + '_' + index;
+    let sender = senders[key];
+    if (sender) {
+      peerConnection.removeTrack(sender);
+      delete senders[key];
+      sender = null;
+    }
+    else {
+      console.warn('NO sender for kind=' + kind + ' ,index=' + index);
+    }
+  }
+
+  // start PeerConnection
+  function connect(withDataChannel) {
+    if (! peerConnection) {
+      console.log('start Offer');
+      startOffer(withDataChannel);
+    }
+    else {
+      console.warn('peer already exist.');
+    }
+  }
+
+  // close PeerConnection
+  function hangUp() {
+    if (peerConnection) {
+      console.log('Hang up.');
+      peerConnection.close();
+      peerConnection = null;
+      //pauseVideo(remoteVideo);
+    }
+    else {
+      console.warn('peer NOT exist.');
+    }
+  }
+
+  function sendData(data) {
+    if (dataChannel) {
+      const str = JSON.stringify(data);
+      dataChannel.send(str);
+    }
+  }
+
+  async function startVideo() {
+    const option = {video: true, audio: true};
+    const stream = await navigator.mediaDevices.getUserMedia(option)
+    localStream = stream;
+    localVideo.srcObject = localStream;
+    localVideo.play();
+    localVideo.volume = 0;
+
+    startCanvasAnimate();
+    startWebAudio();
+  }
+
+  function stopVideo() {
+    localVideo.pause();
+    localVideo.srcObject = null;
+    if (localStream) {
+      stopLocalStream(localStream);
+      localStream = null;
+    }
+
+    stopCanvasAnimate();
+    stopWebAudio();
+  }
+
+  function stopLocalStream(stream) {
+    let tracks = stream.getTracks();
+    for (let track of tracks) {
+      track.stop();
+    }
+  }
+
+  // ----- canvas ----
+  const localCanvas = document.getElementById('local_canvas');
+  let ctxCanvas = null;
+  let canvasStream = null;
+  let animateId = null;
+  function startCanvasAnimate() {
+    ctxCanvas = localCanvas.getContext('2d');
+
+    animateId = window.requestAnimationFrame(_drawCanvas);
+    canvasStream = localCanvas.captureStream(10)
+
+    function _drawCanvas() {
+      const t = new Date();
+      const str = ('00' + t.getHours()).slice(-2) + ':' + ('00' + t.getMinutes()).slice(-2) + ':' + ('00' + t.getSeconds()).slice(-2);
+      //ctxCanvas.fillStyle = 'rgb(200, 200, ' + Math.floor(255.0 * t.getMilliseconds() / 1000.0) + ')';
+      ctxCanvas.fillStyle = 'white';
+      ctxCanvas.fillRect(0, 0, 160, 120);
+      ctxCanvas.font = '14px serif';
+      ctxCanvas.fillStyle = 'red';
+      ctxCanvas.fillText(str, 5, 20);
+
+      animateId = window.requestAnimationFrame(_drawCanvas);
+    }
+  }
+
+
+  function stopCanvasAnimate() {
+    if (animateId) {
+      window.cancelAnimationFrame(animateId);
+      animateId = null;
+      ctxCanvas = null;
+    }
+    if (canvasStream) {
+      stopLocalStream(canvasStream);
+      canvasStream = null;
+    }
+  }
+
+  // ---- webAudio ---
+  let audioCtx = new AudioContext();
+  let audioStream = null;
+  let audioNodes = [];
+
+  function startWebAudio() {
+    const osc1 =  audioCtx.createOscillator();
+    osc1.type = 'square';
+    osc1.frequency.value = 440; // value in hertz();
+    osc1.start();
+    audioNodes.push(osc1);
+    const osc2 =  audioCtx.createOscillator();
+    osc2.type = 'square';
+    osc2.frequency.value = 349; // value in hertz();
+    osc2.start();
+    audioNodes.push(osc2);
+    const osc3 =  audioCtx.createOscillator();
+    osc3.type = 'square';
+    osc3.frequency.value = 523; // value in hertz();
+    osc3.start();
+    audioNodes.push(osc3);
+
+    //osc1.connect(audioCtx.destination);
+    //osc2.connect(audioCtx.destination);
+    //osc3.connect(audioCtx.destination);
+
+    const gain =  audioCtx.createGain();
+    gain.gain.value = 0.4;
+    osc1.connect(gain);
+    osc2.connect(gain);
+    osc3.connect(gain);
+    //gain.connect(audioCtx.destination);
+    audioNodes.push(gain);
+
+    const mediaDestinationNode = audioCtx.createMediaStreamDestination();
+    //osc.connect(mediaDestinationNode);
+    //osc2.connect(mediaDestinationNode);
+    //osc3.connect(mediaDestinationNode);
+    gain.connect(mediaDestinationNode);
+    audioStream = mediaDestinationNode.stream;
+    audioNodes.push(mediaDestinationNode);
+
+    localAudio.srcObject = audioStream;
+    localAudio.play();
+    localAudio.volume = 0.0;
+  }
+
+  function stopWebAudio() {
+    localAudio.pause();
+    localAudio.srcObject = null;
+
+    if (audioStream) {
+      stopLocalStream(audioStream)
+      audioStream = null;
+    }
+
+    audioNodes.forEach(function(node) {
+      node.disconnect();
+      if (node.stop) {
+        node.stop();
+      }
+    });
+
+    audioNodes = [];
+  }
+
+
+  // --- add elements for remote stream ---
+  function addRemoteTrack(kind, track, stream) {
+    const id = stream.id;
+    const existStream = remoteStreams[id];
+    if (existStream) {
+      console.log('add ' + kind + ' track of existing remote stream.id=' + id);
+
+      // -- re-attach --
+      const videoId = "remotevideo_" + stream.id;
+      let video = document.getElementById(videoId); //'remotevideo_' + event.stream.id);
+      if (! video) {
+        console.error('video NOT EXIST for stream.id=' + stream.id);
+        return;
+      }
+      if (kind === 'audio') {
+        video.volume = 0.1;
+      }
+      return;
+    }
+
+    // --- new stream ---
+    console.log('--add ' + kind + ' track of new remote stream.id=' + id);
+    remoteStreams[id] = stream;
+    const video = document.createElement('video');
+    video.id = 'remotevideo_' + id;
+    video.style.border = '1px solid black';
+    video.style.width = "320px";
+    video.style.height = "240px";
+    video.controls = true;
+
+    remoteContainer.appendChild(video);
+    video.srcObject = stream;
+    video.play();
+    if (kind === 'audio') {
+      video.volume = 0.1;
+    }
+  }
+
+  function removeRemoteTrack(kind, track, stream) {
+    const id = stream.id;
+    console.log('--remove ' + kind + ' track of remote stream.id=' + id);
+    let existStream = remoteStreams[id];
+    if (! existStream) {
+      console.warn('remote stream NOT EXIST for ' + kind + ' track, stream.id=' + id);
+      return;
+    }
+
+    const count = stream.getTracks().length;
+    if (count > 0) {
+      console.log('track still exist, so keep video element');
+      return;
+    }
+
+    console.log('--remove video element for ' + kind + ' track of remote stream.id=' + id);
+    delete remoteStreams[id];
+    existStream = null;
+    const videoId = "remotevideo_" + stream.id;
+    let video = document.getElementById(videoId); //'remotevideo_' + event.stream.id);
+    video.pause();
+    video.srcObject = null;
+    remoteContainer.removeChild(video);
+  }
+</script>
+</html>
