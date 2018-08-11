@@ -65,6 +65,22 @@ Qiitaの記事は[こちら](https://qiita.com/massie_g/items/925c12076af669106b
 * Firebaseを使ってシグナリングを行う多人数ビデオチャット [basic2016/multi_firebase.html](/basic2016/multi_firebase.html)
 * Firebaseを使ってシグナリング、adapter.jsでEdge同志の通信も可能 [basic2016/multi_firebase_adapter.html](/basic2016/multi_firebase_adapter.html)
 
+### (6) 番外編：シグナリングサーバー不要 - BroadcastChannelを使ったシグナリング
+* BroadcastChannelを使ったシグナリングを行う多人数ビデオチャット [basic2016/multi_bc.html](/basic2016/multi_bc.html)
+* BroadcastChannelを使った多人数ビデオチャット</a> (同一マシンのChrome間, Firefox間で動作）
+
+### (7) 番外編：最新のWebRTCのtrack系処理を、手動＋データチャネルシグナリングで観察してみる
+* 手動シグナリング+DataChannelシグナリングでtrackを操る [basic2016/datachannel_signaling_track.html](/basic2016/datachannel_signaling_track.html)
+* addTrack()/removeTrack()を使い、ontrack(), onremovetrack()に対応</a> 
+* Qiitaの記事： [最新のWebRTCのtrack系処理を、手動＋データチャネルシグナリングで観察してみる](https://qiita.com/massie_g/items/1316eb8c6e0d171307f5)
+
+### (8) 番外編： addTrack()/ontrack()、multi-stream時代の DataChannelシグナリング (2018.08)
+*  DataChannelのよる1:1シグナリング、multi-stream、addTrack()/ontrack()対応 [basic2016/dc_signaling_multistream.html](/basic2016/dc_signaling_multistream.html)
+* BroadcastChannelを使って初期シグナリングでDataChannelを確立、その後はDataChannelを介してシグナリング
+* ※BroadcastChannelのチェックを外せば、手動シグナリングも可能（Chrome - Firefox間）
+* addTrack()/removeTrack(), peer.ontrack(), stream.onremovetrack()を利用
+* Firefoxと, Chrome 70〜で利用できる、Unified Planを用いたmulti-streamに対応
+
 
 ## WebRTC Meetup 10 のサンプル
 Chrome 50 で動作確認
