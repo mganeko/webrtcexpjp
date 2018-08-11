@@ -52,5 +52,27 @@
     </li>
   </ul>
 
+  <h4>(7) 番外編： addTrack()/ontrack()、multi-stream時代の DataChannelシグナリング (2018.08) </h4>
+  <ul>
+    <li><a target="_blank" href="dc_signaling_multistream.html">
+      DataChannelのよる1:1シグナリング、multi-stream、addTrack()/ontrack()対応</a> (同一マシンのChrome間, Firefox間で動作）
+    </li>
+    <ul>
+      <li>
+        BroadcastChannelを使って初期シグナリングでDataChannelを確立、その後はDataChannelを介してシグナリング
+      </li>
+      <li>
+        ※BroadcastChannelのチェックを外せば、手動シグナリングも可能（Chrome - Firefox間）
+      </li>
+      <li>
+        addTrack()/removeTrack(), peer.ontrack(), stream.onremovetrack()を利用
+      </li>
+      <li>
+        Firefoxと, Chrome 70〜で利用できる、Unified Planを用いたmulti-streamに対応
+      </li>  
+    </ul>
+  </ul>
+
+
   <hr />
 </html>
