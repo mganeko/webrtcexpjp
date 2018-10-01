@@ -112,12 +112,48 @@
 
   // --- broadcast channel
   const channelName = 'myroom';
-  const broadcast = new BroadcastChannel(channelName);
+  let broadcast = null;
+  if (window.BroadcastChannel) {
+    broadcast = new BroadcastChannel(channelName);
+
+    // メッセージのハンドリング
+    broadcast.onmessage = function(evt) {
+      let messageObject = JSON.parse(evt.data);
+
+      // ... メッセージに応じた処理 ...
+      if (messageObject.type === 'offer') {
+        console.log('get Offer over broadcastChannel');
+        textToReceiveSdp.value = messageObject.sdp;
+        let offer = new RTCSessionDescription({
+          type : messageObject.type,
+          sdp : messageObject.sdp,
+        });
+        if (! peerConnection) {
+          const withDataChannel = true;
+          peerConnection = prepareNewConnection(withDataChannel);
+        }
+        const sendNow = false;
+        setOffer(offer, sendNow);      
+      }
+      else if (messageObject.type === 'answer') {
+        console.log('Received answer over broadcastChannel');
+        textToReceiveSdp.value = messageObject.sdp;
+        description = new RTCSessionDescription({
+          type : messageObject.type,
+          sdp : messageObject.sdp,
+        });
+        setAnswer(description);
+      }
+    }
+  } 
 
   function useBroadcastChannel() {
     const boradcastChecked = document.getElementById('use_broadcast_channel').checked;
     if (! boradcastChecked) {
       return false; // do not use broadcastChannel
+    }
+    if (! broadcast) {
+      return false; // broadcast not ready
     }
 
     if (! dataChannel) {
@@ -131,35 +167,6 @@
     return true;
   }
 
-  // メッセージのハンドリング
-  broadcast.onmessage = function(evt) {
-    let messageObject = JSON.parse(evt.data);
-
-    // ... メッセージに応じた処理 ...
-    if (messageObject.type === 'offer') {
-      console.log('get Offer over broadcastChannel');
-      textToReceiveSdp.value = messageObject.sdp;
-      let offer = new RTCSessionDescription({
-        type : messageObject.type,
-        sdp : messageObject.sdp,
-      });
-      if (! peerConnection) {
-        const withDataChannel = true;
-        peerConnection = prepareNewConnection(withDataChannel);
-      }
-      const sendNow = false;
-      setOffer(offer, sendNow);      
-    }
-    else if (messageObject.type === 'answer') {
-      console.log('Received answer over broadcastChannel');
-      textToReceiveSdp.value = messageObject.sdp;
-      description = new RTCSessionDescription({
-        type : messageObject.type,
-        sdp : messageObject.sdp,
-      });
-      setAnswer(description);
-    }
-  }
 
   // メッセージの送信
   //let messageString = JSON.stringify(messageObject);
@@ -727,7 +734,8 @@
 
     remoteContainer.appendChild(video);
     video.srcObject = stream;
-    video.play();
+    video.play()
+    .catch( err => console.error('Play ERROR:', err) );
     if (kind === 'audio') {
       video.volume = 0.1;
     }
