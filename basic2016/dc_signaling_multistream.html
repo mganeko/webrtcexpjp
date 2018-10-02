@@ -636,7 +636,13 @@
   }
 
   // ---- webAudio ---
-  let audioCtx = new AudioContext();
+  let audioCtx = null;
+  if (window.AudioContect) {
+    audioCtx = new AudioContext();
+  }
+  else if (window.webkitAudioContect) {
+    audioCtx = new webkitAudioContect();
+  }
   let audioStream = null;
   let audioNodes = [];
 
