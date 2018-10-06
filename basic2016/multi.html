@@ -432,7 +432,13 @@
     //let message = JSON.stringify(obj);
     //console.log('sending candidate=' + message);
     //ws.send(message);
-    emitTo(id, obj);
+
+    if (isConnectedWith(id)) {
+      emitTo(id, obj);
+    }
+    else {
+      console.warn('connection NOT EXIST or ALREADY CLOSED. so skip candidate')
+    }
   }
 
   // ---------------------- connection handling -----------------------
@@ -614,6 +620,11 @@
 
   // --- tricke ICE ---
   function addIceCandidate(id, candidate) {
+    if (! isConnectedWith(id)) {
+      console.warn('NOT CONNEDTED or ALREADY CLOSED with id=' + id + ', so ignore candidate');
+      return;
+    }
+    
     let peerConnection = getConnection(id);
     if (peerConnection) {
       peerConnection.addIceCandidate(candidate);
