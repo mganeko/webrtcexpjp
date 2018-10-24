@@ -47,6 +47,9 @@
     <button type="button" onclick="onSdpText();">Receive remote SDP</button><br />
     <textarea id="text_for_receive_sdp" rows="5" cols="60"></textarea>
   </p>
+  <p>DataChannel message:&nbsp;<br/>
+    <textarea id="text_for_datachannel" rows="5" cols="60"></textarea>
+  </p>
 </body>
 <script>
   // TODO
@@ -67,6 +70,7 @@
   //const remoteVideo = document.getElementById('remote_video');
   const textForSendSdp = document.getElementById('text_for_send_sdp');
   const textToReceiveSdp = document.getElementById('text_for_receive_sdp');
+  const textForDataChannel = document.getElementById('text_for_datachannel');
   let senders = [];
 
   let remoteStreams = [];
@@ -390,6 +394,7 @@
       const obj = JSON.parse(msg);
       if (obj.type === 'text') {
         console.log('text Message over DataChannel:', msg);
+        showTextData(obj.body);
         if (obj.body === 'hello') {
           sendData({ type: 'text', body: 'reply to hello'});
         }
@@ -564,6 +569,10 @@
       const str = JSON.stringify(data);
       dataChannel.send(str);
     }
+  }
+
+  function showTextData(text) {
+    textForDataChannel.innerText = textForDataChannel.innerHTML + text + String.fromCharCode(13);
   }
 
   async function startVideo() {
