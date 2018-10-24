@@ -571,7 +571,8 @@
     const stream = await navigator.mediaDevices.getUserMedia(option)
     localStream = stream;
     localVideo.srcObject = localStream;
-    localVideo.play();
+    localVideo.play()
+    .catch( err => console.error('Play ERROR:', err) );
     localVideo.volume = 0;
 
     startCanvasAnimate();
@@ -637,11 +638,11 @@
 
   // ---- webAudio ---
   let audioCtx = null;
-  if (window.AudioContect) {
+  if (window.AudioContext) {
     audioCtx = new AudioContext();
   }
-  else if (window.webkitAudioContect) {
-    audioCtx = new webkitAudioContect();
+  else if (window.webkitAudioContext) {
+    audioCtx = new webkitAudioContext();
   }
   let audioStream = null;
   let audioNodes = [];
@@ -684,7 +685,8 @@
     audioNodes.push(mediaDestinationNode);
 
     localAudio.srcObject = audioStream;
-    localAudio.play();
+    localAudio.play()
+    .catch( err => console.error('Play ERROR:', err) );
     localAudio.volume = 0.0;
   }
 
