@@ -357,37 +357,48 @@
       }
       --*/
 
-      stream.onaddtrack = function (evt) {
-        _logStream('stream.onaddtrack', stream);
-        const track = evt.track;
-        console.log('stream.onaddtrack(): track kind=', track.kind);
-        if (track.kind === 'video') {
-          //playVideo(remoteVideo, stream);
-        }
-        else if (track.kind === 'audio') {
-          //playVideo(remoteAudio, stream);
-          //remoteAudio.volume = 0.5;
-        }
-      };
-      stream.onremovetrack = function (evt) {
-        _logStream('stream.onremovetrack', stream);
-        //console.log('stream.onremovetrack():', evt);
-        const track = evt.track;
-        console.log('stream.onremovetrack(): track kind=', track.kind);
-        const tracks = stream.getTracks();
-        const trackCount = tracks.length;
-        console.log('onremovetrack tracks.lenght=' + trackCount);
-        /*
-        if (trackCount < 1) {
-          console.log('----remote stream stoped---');
-          remoteVideo.pause();
-          remoteVideo.srcObject = null;
-          remoteStream = null;
-        }
-        */
+      if (! stream.onaddtrack) { 
+        stream.onaddtrack = function (evt) {
+          _logStream('stream.onaddtrack', stream);
+          const track = evt.track;
+          console.log('stream.onaddtrack(): track kind=', track.kind);
+          if (track.kind === 'video') {
+            //playVideo(remoteVideo, stream);
+          }
+          else if (track.kind === 'audio') {
+            //playVideo(remoteAudio, stream);
+            //remoteAudio.volume = 0.5;
+          }
+        };
+      }
+      else {
+        console.log('stream.onaddtrack() Handler ALREADY EXIST');
+      }
 
-        removeRemoteTrack(track.kind, track, stream);
-      };
+      if (! stream.onremovetrack) {
+        stream.onremovetrack = function (evt) {
+          _logStream('stream.onremovetrack', stream);
+          //console.log('stream.onremovetrack():', evt);
+          const track = evt.track;
+          console.log('stream.onremovetrack(): track kind=', track.kind);
+          const tracks = stream.getTracks();
+          const trackCount = tracks.length;
+          console.log('onremovetrack tracks.lenght=' + trackCount);
+          /*
+          if (trackCount < 1) {
+            console.log('----remote stream stoped---');
+            remoteVideo.pause();
+            remoteVideo.srcObject = null;
+            remoteStream = null;
+          }
+          */
+
+          removeRemoteTrack(track.kind, track, stream);
+        };
+      }
+      else {
+        console.log('stream.onremovetrack() Handler ALREADY EXIST');        
+      }
     }
       
     if (withDataChannel) {
