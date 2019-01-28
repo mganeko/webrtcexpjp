@@ -55,16 +55,6 @@ async function connect() {
 
   const iceType = 'vanilla';
   peerConnection = prepareNewConnection();
-  /*
-  try {
-    let offer = await makeOfferAsync(peerConnection, localStream, iceType);
-    console.log('makeOfferAsync() success');
-    sendSdp(offer);
-  }
-  catch(err) {
-    console.error(err)
-  }
-  */
   let offer = await makeOfferAsync(peerConnection, localStream, iceType).catch(err =>{
     console.error('makeOfferAsync() error:', err);
     return;
@@ -127,18 +117,7 @@ async function makeOfferAsync(peer, stream, iceType) {
       console.log('==== onnegotiationneeded() ====');
       if (sendigOffer) {
         sendigOffer = false;
-        /*
-        try {
-          let offer = await peer.createOffer();
-          console.log('createOffer() succsess');
-          await peer.setLocalDescription(offer);
-          console.log('setLocalDescription() succsess');
-        } catch(err){
-          console.error('setLocalDescription(offer) ERROR: ', err);
-          reject(err);
-        }
-        */
-       
+
         let offer = await peer.createOffer().catch(err =>{
           console.error('createOffer error:', err);
           reject(err);
@@ -186,51 +165,6 @@ async function makeOfferAsync(peer, stream, iceType) {
         }
       }
     };
-
-
-    /* move to onnnegotiationneeded
-    // --- offer ----
-    try {
-      let offer = await peer.createOffer();
-      console.log('createOffer() succsess');
-      await peer.setLocalDescription(offer);
-      console.log('setLocalDescription() succsess');
-    } catch(err){
-      console.error('setLocalDescription(offer) ERROR: ', err);
-      reject(err);
-    }
-
-    if (iceType === 'tricle') {
-      // go next step with inital offer SDP
-      resolve(peer.localDescription);
-    }
-    */
-
-
-    /*
-    // Offer側でネゴシエーションが必要になったときの処理
-    peer.onnegotiationneeded = async () => {
-      if (sendigOffer) {
-        sendingOffer = false;
-        try {
-          let offer = await peer.createOffer();
-          console.log('createOffer() succsess in promise');
-          await peer.setLocalDescription(offer);
-          console.log('setLocalDescription() succsess in promise');
-
-          
-        } catch(err){
-          console.error('setLocalDescription(offer) ERROR: ', err);
-          reject(err);
-        }
-
-        if (iceType === 'tricle') {
-          resolve(peer.localDescription);
-        }
-      }
-    }
-    */
-
   });
 }
 
@@ -252,15 +186,6 @@ async function onSdpText() {
         sdp : text,
     });
     
-    /*
-    try {
-      await peerConnection.setRemoteDescription(answer);
-      console.log('setRemoteDescription(answer) success');
-    }
-    catch(err) {
-      console.error('setRemoteDescription(answer) error', err);
-    };
-    */
     await peerConnection.setRemoteDescription(answer).catch(err => {
       console.error('setRemoteDescription(answer) error', err);
       return;
@@ -276,18 +201,6 @@ async function onSdpText() {
 
     const iceType = 'vanilla';
     peerConnection = prepareNewConnection();
-    /*
-    try {
-      await peerConnection.setRemoteDescription(offer);
-      console.log('setRemoteDescription(offer) success');
-      let answer = await makeAnswerAsync(peerConnection, localStream, iceType);
-      console.log('makeAnswerAsync() success');
-      sendSdp(answer);
-    }
-    catch (err) {
-      console.error(err);
-    }
-    */
     await peerConnection.setRemoteDescription(offer).catch(err => {
       console.error('setRemoteDescription(offer) error', err);
       return;
@@ -315,16 +228,6 @@ function isOfferSide() {
   }
 }
 
-/*
-function acceptAnswer(peer, answer) {
-  return peer.setRemoteDescription(answer); // return promise
-}
-
-function acceptOffer(peer, offer) {
-  return peer.setRemoteDescription(offer) // return promise
-}
-*/
-
 function makeAnswerAsync(peer, stream, iceType) {
   return new Promise(async (resolve, reject) =>  {
     // --- setup onnegotiationneeded ---
@@ -348,7 +251,7 @@ function makeAnswerAsync(peer, stream, iceType) {
       } else {
         console.log('empty ice event');
         if (iceType === 'vanilla') {
-          // go next step with complete offer SDP
+          // go next step with complete answer SDP
           resolve(peer.localDescription);
         }
       }
@@ -356,17 +259,6 @@ function makeAnswerAsync(peer, stream, iceType) {
 
 
     // --- answer ----
-    /*
-    try {
-      let offer = await peer.createAnswer();
-      console.log('createOffer() succsess');
-      await peer.setLocalDescription(offer);
-      console.log('setLocalDescription() succsess');
-    } catch(err){
-      console.error('setLocalDescription(offer) ERROR: ', err);
-      reject(err);
-    }
-    */
     let answer = await peer.createAnswer().catch(err =>{
       console.error('createAnswer() error:', err);
       reject(err);
@@ -382,7 +274,7 @@ function makeAnswerAsync(peer, stream, iceType) {
     console.log('setLocalDescription(answer) succsess')
 
     if (iceType === 'tricle') {
-      // go next step with inital offer SDP
+      // go next step with inital answer SDP
       resolve(peer.localDescription);
     }
   });
