@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>WebRTC Hand-signaling 2019</title>
+</head>
+
+<body>
+WebRTC Hand-signaling 2019<br />
+<button type="button" onclick="startVideo();">Start Video</button>
+<button type="button" onclick="stopVideo();">Stop Video</button>
+&nbsp;
+<button type="button" onclick="connect();">Connect</button>
+<button type="button" onclick="hangUp();">Hang Up</button>
+<div>
+  <video id="local_video" autoplay muted=true style="width: 160px; height: 120px; border: 1px solid black;"></video>
+  <video id="remote_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+</div>
+<p>SDP to send:<br />
+  <textarea id="text_for_send_sdp" rows="5" cols="60" readonly="readonly">SDP to send</textarea>
+</p>
+<p>SDP to receive:&nbsp;
+  <button type="button" onclick="onSdpText();">Receive remote SDP</button><br />
+  <textarea id="text_for_receive_sdp" rows="5" cols="60"></textarea>
+</p>
+
+<script type='text/javascript' src='./webrtc_async.js'></script>
+
+
+</body>
+</html>
