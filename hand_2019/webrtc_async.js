@@ -1,3 +1,5 @@
+'use strict';
+
 const localVideo = document.getElementById('local_video');
 const remoteVideo = document.getElementById('remote_video');
 const textForSendSdp = document.getElementById('text_for_send_sdp');
@@ -107,16 +109,51 @@ function prepareNewConnection() {
   return peer;
 }
 
-async function makeOfferAsync(peer, stream, iceType) {
-  let sendigOffer = true;
+// returning Promise
+function makeOfferAsync(peer, stream, iceType) {
+  const sdpType = 'offer';
+  return makeSdpAsync(peer, stream, iceType, sdpType);
+}
+
+async function acceptOffer(offer) {
+  const iceType = 'vanilla';
+  peerConnection = prepareNewConnection();
+  await peerConnection.setRemoteDescription(offer).catch(err => {
+    console.error('setRemoteDescription(offer) error', err);
+    return;
+  });
+  console.log('setRemoteDescription(offer) success');
+
+  let answer = await makeAnswerAsync(peerConnection, localStream, iceType).catch(err => {
+    console.error('makeAnswerAsync() error:', err);
+    return;
+  });
+  console.log('makeAnswerAsync() success');
+
+  sendSdp(answer);
+}
+
+// returning Promise
+function makeAnswerAsync(peer, stream, iceType) {
+  const sdpType = 'answer';
+  return makeSdpAsync(peer, stream, iceType, sdpType);
+}
+
+// returning Promise
+async function makeSdpAsync(peer, stream, iceType, sdpType) {
+  let sendingOffer = false;
+  if (sdpType === 'offer') {
+    sendingOffer = true;
+  }
+
   return new Promise(async (resolve, reject) =>  {
     // --- setup onnegotiationneeded ---
     // ???
     // Offer側でネゴシエーションが必要になったときの処理
     peer.onnegotiationneeded = async () => {
       console.log('==== onnegotiationneeded() ====');
-      if (sendigOffer) {
-        sendigOffer = false;
+      if (sendingOffer) {
+        sendingOffer = false;
 
         let offer = await peer.createOffer().catch(err =>{
           console.error('createOffer error:', err);
@@ -165,7 +202,29 @@ async function makeOfferAsync(peer, stream, iceType) {
         }
       }
     };
-  });
+
+    // --- answer ----
+    if (sdpType === 'answer') {
+      let answer = await peer.createAnswer().catch(err =>{
+        console.error('createAnswer() error:', err);
+        reject(err);
+        return;
+      });
+      console.log('createAnswer() succsess');
+
+      await peer.setLocalDescription(answer).catch(err =>{
+        console.error('setLocalDescription(answer) error:', err);
+        reject(err);
+        return;
+      });
+      console.log('setLocalDescription(answer) succsess')
+
+      if (iceType === 'tricle') {
+        // go next step with inital answer SDP
+        resolve(peer.localDescription);
+      }
+    }
+  }); 
 }
 
 // 手動シグナリングのための処理を追加する
@@ -199,21 +258,7 @@ async function onSdpText() {
         sdp : text,
     });
 
-    const iceType = 'vanilla';
-    peerConnection = prepareNewConnection();
-    await peerConnection.setRemoteDescription(offer).catch(err => {
-      console.error('setRemoteDescription(offer) error', err);
-      return;
-    });
-    console.log('setRemoteDescription(offer) success');
-
-    let answer = await makeAnswerAsync(peerConnection, localStream, iceType).catch(err => {
-      console.error('makeAnswerAsync() error:', err);
-      return;
-    });
-    console.log('makeAnswerAsync() success');
-
-    sendSdp(answer);
+    acceptOffer(offer);
   }
 
   textToReceiveSdp.value ='';
@@ -228,54 +273,3 @@ function isOfferSide() {
   }
 }
 
-function makeAnswerAsync(peer, stream, iceType) {
-  return new Promise(async (resolve, reject) =>  {
-    // --- setup onnegotiationneeded ---
-    // ???
-
-    // --- add stream ---
-    if (stream) {
-      console.log('Adding local stream...');
-      localStream.getTracks().forEach(track => peer.addTrack(track, stream));
-    } else {
-      console.warn('no local stream, but continue.');
-    }
-
-    // ICE Candidateを収集したときのイベント
-    peer.onicecandidate = evt => {
-      if (evt.candidate) {
-        console.log(evt.candidate);
-        if (iceType === 'tricle') {
-          //sendIceCandidate(evt.candidate);
-        }
-      } else {
-        console.log('empty ice event');
-        if (iceType === 'vanilla') {
-          // go next step with complete answer SDP
-          resolve(peer.localDescription);
-        }
-      }
-    };
-
-
-    // --- answer ----
-    let answer = await peer.createAnswer().catch(err =>{
-      console.error('createAnswer() error:', err);
-      reject(err);
-      return;
-    });
-    console.log('createAnswer() succsess');
-
-    await peer.setLocalDescription(answer).catch(err =>{
-      console.error('setLocalDescription(answer) error:', err);
-      reject(err);
-      return;
-    });
-    console.log('setLocalDescription(answer) succsess')
-
-    if (iceType === 'tricle') {
-      // go next step with inital answer SDP
-      resolve(peer.localDescription);
-    }
-  });
-}
