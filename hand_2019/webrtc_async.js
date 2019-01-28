@@ -1,5 +1,10 @@
 'use strict';
 
+const ICETYPE_VANILLA = 'vanilla';
+const ICETYPE_TRICKLE = 'trickle';
+const SDPTYPE_OFFER = 'offer';
+const SDPTYPE_ANSWER = 'answer';
+
 const localVideo = document.getElementById('local_video');
 const remoteVideo = document.getElementById('remote_video');
 const textForSendSdp = document.getElementById('text_for_send_sdp');
@@ -55,7 +60,7 @@ async function connect() {
     return;
   }
 
-  const iceType = 'vanilla';
+  const iceType = ICETYPE_VANILLA;
   peerConnection = prepareNewConnection();
   let offer = await makeOfferAsync(peerConnection, localStream, iceType).catch(err =>{
     console.error('makeOfferAsync() error:', err);
@@ -111,12 +116,12 @@ function prepareNewConnection() {
 
 // returning Promise
 function makeOfferAsync(peer, stream, iceType) {
-  const sdpType = 'offer';
+  const sdpType = SDPTYPE_OFFER;
   return makeSdpAsync(peer, stream, iceType, sdpType);
 }
 
 async function acceptOffer(offer) {
-  const iceType = 'vanilla';
+  const iceType = ICETYPE_VANILLA;
   peerConnection = prepareNewConnection();
   await peerConnection.setRemoteDescription(offer).catch(err => {
     console.error('setRemoteDescription(offer) error', err);
@@ -135,20 +140,20 @@ async function acceptOffer(offer) {
 
 // returning Promise
 function makeAnswerAsync(peer, stream, iceType) {
-  const sdpType = 'answer';
+  const sdpType = SDPTYPE_ANSWER;
   return makeSdpAsync(peer, stream, iceType, sdpType);
 }
 
 // returning Promise
 async function makeSdpAsync(peer, stream, iceType, sdpType) {
   let sendingOffer = false;
-  if (sdpType === 'offer') {
+  if (sdpType === SDPTYPE_OFFER) {
     sendingOffer = true;
   }
 
   return new Promise(async (resolve, reject) =>  {
     // --- setup onnegotiationneeded ---
-    // ???
+
     // Offer側でネゴシエーションが必要になったときの処理
     peer.onnegotiationneeded = async () => {
       console.log('==== onnegotiationneeded() ====');
@@ -169,7 +174,7 @@ async function makeSdpAsync(peer, stream, iceType, sdpType) {
         });
         console.log('setLocalDescription(offer) succsess');
 
-        if (iceType === 'tricle') {
+        if (iceType === ICETYPE_TRICKLE) {
           // go to next step with initial offer SDP
           resolve(peer.localDescription);
         }
@@ -191,12 +196,12 @@ async function makeSdpAsync(peer, stream, iceType, sdpType) {
     peer.onicecandidate = evt => {
       if (evt.candidate) {
         console.log(evt.candidate);
-        if (iceType === 'tricle') {
+        if (iceType === ICETYPE_TRICKLE) {
           //sendIceCandidate(evt.candidate);
         }
       } else {
         console.log('empty ice event');
-        if (iceType === 'vanilla') {
+        if (iceType === ICETYPE_VANILLA) {
           // go next step with complete offer SDP
           resolve(peer.localDescription);
         }
@@ -204,7 +209,7 @@ async function makeSdpAsync(peer, stream, iceType, sdpType) {
     };
 
     // --- answer ----
-    if (sdpType === 'answer') {
+    if (sdpType === SDPTYPE_ANSWER) {
       let answer = await peer.createAnswer().catch(err =>{
         console.error('createAnswer() error:', err);
         reject(err);
@@ -219,7 +224,7 @@ async function makeSdpAsync(peer, stream, iceType, sdpType) {
       });
       console.log('setLocalDescription(answer) succsess')
 
-      if (iceType === 'tricle') {
+      if (iceType === ICETYPE_TRICKLE) {
         // go next step with inital answer SDP
         resolve(peer.localDescription);
       }
@@ -241,7 +246,7 @@ async function onSdpText() {
   if (isOfferSide()) {
     console.log('Received answer text...');
     const answer = new RTCSessionDescription({
-        type : 'answer',
+        type : SDPTYPE_ANSWER,
         sdp : text,
     });
     
@@ -254,7 +259,7 @@ async function onSdpText() {
   else {
     console.log('Received offer text...');
     const offer = new RTCSessionDescription({
-        type : 'offer',
+        type : SDPTYPE_OFFER,
         sdp : text,
     });
 
