@@ -114,19 +114,20 @@ function prepareNewConnection() {
 }
 
 async function makeOffer(peer, stream, iceType) {
-  const sendigOffer = true;
+  let sendigOffer = true;
   return new Promise(async (resolve, reject) =>  {
     // --- setup onnegotiationneeded ---
     // ???
     // Offer側でネゴシエーションが必要になったときの処理
     peer.onnegotiationneeded = async () => {
+      console.log('==== onnegotiationneeded() ====');
       if (sendigOffer) {
-        sendingOffer = false;
+        sendigOffer = false;
         try {
           let offer = await peer.createOffer();
-          console.log('createOffer() succsess in promise');
+          console.log('createOffer() succsess');
           await peer.setLocalDescription(offer);
-          console.log('setLocalDescription() succsess in promise');
+          console.log('setLocalDescription() succsess');
 
           
         } catch(err){
@@ -139,7 +140,7 @@ async function makeOffer(peer, stream, iceType) {
         }
       }
       else {
-        console.warn('skip onnegotiationneeded()');
+        console.warn('--skip onnegotiationneeded()--');
       }
     }
 
