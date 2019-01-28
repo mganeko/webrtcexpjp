@@ -120,6 +120,20 @@ function makeOfferAsync(peer, stream, iceType) {
   return makeSdpAsync(peer, stream, iceType, sdpType);
 }
 
+// returning Promise
+function makeAnswerAsync(peer, stream, iceType) {
+  const sdpType = SDPTYPE_ANSWER;
+  return makeSdpAsync(peer, stream, iceType, sdpType);
+}
+
+async function setAnswer(answer) {
+  await peerConnection.setRemoteDescription(answer).catch(err => {
+    console.error('setRemoteDescription(answer) error', err);
+    return;
+  });
+  console.log('setRemoteDescription(answer) success');
+}
+
 async function acceptOffer(offer) {
   const iceType = ICETYPE_VANILLA;
   peerConnection = prepareNewConnection();
@@ -136,12 +150,6 @@ async function acceptOffer(offer) {
   console.log('makeAnswerAsync() success');
 
   sendSdp(answer);
-}
-
-// returning Promise
-function makeAnswerAsync(peer, stream, iceType) {
-  const sdpType = SDPTYPE_ANSWER;
-  return makeSdpAsync(peer, stream, iceType, sdpType);
 }
 
 // returning Promise
@@ -249,12 +257,7 @@ async function onSdpText() {
         type : SDPTYPE_ANSWER,
         sdp : text,
     });
-    
-    await peerConnection.setRemoteDescription(answer).catch(err => {
-      console.error('setRemoteDescription(answer) error', err);
-      return;
-    });
-    console.log('setRemoteDescription(answer) success');
+    setAnswer(answer);
   }
   else {
     console.log('Received offer text...');
@@ -262,7 +265,6 @@ async function onSdpText() {
         type : SDPTYPE_OFFER,
         sdp : text,
     });
-
     acceptOffer(offer);
   }
 
