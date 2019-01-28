@@ -7,15 +7,14 @@ let peerConnection = null;
 //let sendigOffer = false;
 
 async function startVideo() {
-  try{
-    localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
-    playVideo(localVideo, localStream);
-  } catch(err){
+  localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true}).catch(err => {
     console.error('mediaDevices.getUserMedia() error:', err);
-  }
+    return;
+  });
+  playVideo(localVideo, localStream);
 }
 
-async function stopVideo() {
+function stopVideo() {
   cleanupVideoElement(localVideo);
   if (localStream) {
     stopStream(localStream);
@@ -31,12 +30,9 @@ async function playVideo(element, stream) {
   };
 
   element.srcObject = stream;
-  try {
-    await element.play();
-  }
-  catch (err) {
-    console.error('playVideo():', err);
-  }
+  await element.play().catch(
+    err => console.error('playVideo() error:', err)
+  );
 }
 
 // ビデオエレメントを初期化する
@@ -59,14 +55,22 @@ async function connect() {
 
   const iceType = 'vanilla';
   peerConnection = prepareNewConnection();
+  /*
   try {
-    let offer = await makeOffer(peerConnection, localStream, iceType);
-    console.log('makeOffer() success');
+    let offer = await makeOfferAsync(peerConnection, localStream, iceType);
+    console.log('makeOfferAsync() success');
     sendSdp(offer);
   }
   catch(err) {
     console.error(err)
   }
+  */
+  let offer = await makeOfferAsync(peerConnection, localStream, iceType).catch(err =>{
+    console.error('makeOfferAsync() error:', err);
+    return;
+  });
+  console.log('makeOfferAsync() success');
+  sendSdp(offer);
 }
 
 // P2P通信を切断する
@@ -113,7 +117,7 @@ function prepareNewConnection() {
   return peer;
 }
 
-async function makeOffer(peer, stream, iceType) {
+async function makeOfferAsync(peer, stream, iceType) {
   let sendigOffer = true;
   return new Promise(async (resolve, reject) =>  {
     // --- setup onnegotiationneeded ---
@@ -123,19 +127,34 @@ async function makeOffer(peer, stream, iceType) {
       console.log('==== onnegotiationneeded() ====');
       if (sendigOffer) {
         sendigOffer = false;
+        /*
         try {
           let offer = await peer.createOffer();
           console.log('createOffer() succsess');
           await peer.setLocalDescription(offer);
           console.log('setLocalDescription() succsess');
-
-          
         } catch(err){
           console.error('setLocalDescription(offer) ERROR: ', err);
           reject(err);
         }
+        */
+       
+        let offer = await peer.createOffer().catch(err =>{
+          console.error('createOffer error:', err);
+          reject(err);
+          return;
+        });
+        console.log('createOffer() succsess');
+
+        await peer.setLocalDescription(offer).catch(err =>{
+          console.error('setLocalDescription(offer) error:', err);
+          reject(err);
+          return;
+        });
+        console.log('setLocalDescription(offer) succsess');
 
         if (iceType === 'tricle') {
+          // go to next step with initial offer SDP
           resolve(peer.localDescription);
         }
       }
@@ -233,6 +252,7 @@ async function onSdpText() {
         sdp : text,
     });
     
+    /*
     try {
       await peerConnection.setRemoteDescription(answer);
       console.log('setRemoteDescription(answer) success');
@@ -240,6 +260,12 @@ async function onSdpText() {
     catch(err) {
       console.error('setRemoteDescription(answer) error', err);
     };
+    */
+    await peerConnection.setRemoteDescription(answer).catch(err => {
+      console.error('setRemoteDescription(answer) error', err);
+      return;
+    });
+    console.log('setRemoteDescription(answer) success');
   }
   else {
     console.log('Received offer text...');
@@ -250,16 +276,31 @@ async function onSdpText() {
 
     const iceType = 'vanilla';
     peerConnection = prepareNewConnection();
+    /*
     try {
       await peerConnection.setRemoteDescription(offer);
       console.log('setRemoteDescription(offer) success');
-      let answer = await makeAnswer(peerConnection, localStream, iceType);
-      console.log('makeAnswer() success');
+      let answer = await makeAnswerAsync(peerConnection, localStream, iceType);
+      console.log('makeAnswerAsync() success');
       sendSdp(answer);
     }
     catch (err) {
       console.error(err);
     }
+    */
+    await peerConnection.setRemoteDescription(offer).catch(err => {
+      console.error('setRemoteDescription(offer) error', err);
+      return;
+    });
+    console.log('setRemoteDescription(offer) success');
+
+    let answer = await makeAnswerAsync(peerConnection, localStream, iceType).catch(err => {
+      console.error('makeAnswerAsync() error:', err);
+      return;
+    });
+    console.log('makeAnswerAsync() success');
+
+    sendSdp(answer);
   }
 
   textToReceiveSdp.value ='';
@@ -284,7 +325,7 @@ function acceptOffer(peer, offer) {
 }
 */
 
-function makeAnswer(peer, stream, iceType) {
+function makeAnswerAsync(peer, stream, iceType) {
   return new Promise(async (resolve, reject) =>  {
     // --- setup onnegotiationneeded ---
     // ???
@@ -315,6 +356,7 @@ function makeAnswer(peer, stream, iceType) {
 
 
     // --- answer ----
+    /*
     try {
       let offer = await peer.createAnswer();
       console.log('createOffer() succsess');
@@ -324,6 +366,20 @@ function makeAnswer(peer, stream, iceType) {
       console.error('setLocalDescription(offer) ERROR: ', err);
       reject(err);
     }
+    */
+    let answer = await peer.createAnswer().catch(err =>{
+      console.error('createAnswer() error:', err);
+      reject(err);
+      return;
+    });
+    console.log('createAnswer() succsess');
+
+    await peer.setLocalDescription(answer).catch(err =>{
+      console.error('setLocalDescription(answer) error:', err);
+      reject(err);
+      return;
+    });
+    console.log('setLocalDescription(answer) succsess')
 
     if (iceType === 'tricle') {
       // go next step with inital offer SDP
