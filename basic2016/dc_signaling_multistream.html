@@ -47,6 +47,9 @@
     <button type="button" onclick="onSdpText();">Receive remote SDP</button><br />
     <textarea id="text_for_receive_sdp" rows="5" cols="60"></textarea>
   </p>
+  <p>DataChannel message:&nbsp;<br/>
+    <textarea id="text_for_datachannel" rows="5" cols="60"></textarea>
+  </p>
 </body>
 <script>
   // TODO
@@ -67,6 +70,7 @@
   //const remoteVideo = document.getElementById('remote_video');
   const textForSendSdp = document.getElementById('text_for_send_sdp');
   const textToReceiveSdp = document.getElementById('text_for_receive_sdp');
+  const textForDataChannel = document.getElementById('text_for_datachannel');
   let senders = [];
 
   let remoteStreams = [];
@@ -280,6 +284,31 @@
       makeOffer(sendNow);
     }
 
+    // --- other events ----
+    peer.onicecandidateerror = function (evt) {
+      console.error('ICE candidate ERROR:', evt);
+    };
+
+    peer.onsignalingstatechange = function() {
+      console.log('== signaling status=' + peer.signalingState);
+    };
+
+    peer.oniceconnectionstatechange = function() {
+      console.log('== ice connection status=' + peer.iceConnectionState);
+      if (peer.iceConnectionState === 'disconnected') {
+        console.log('-- disconnected --');
+
+      }
+    };
+
+    peer.onicegatheringstatechange = function() {
+      console.log('==***== ice gathering state=' + peer.iceGatheringState);
+    };
+    
+    peer.onconnectionstatechange = function() {
+      console.log('==***== connection state=' + peer.connectionState);
+    };
+
     peer.ontrack = function(event) {
       console.log('-- peer.ontrack(): track kind=' + event.track.kind);
       let stream = event.streams[0];
@@ -328,37 +357,48 @@
       }
       --*/
 
-      stream.onaddtrack = function (evt) {
-        _logStream('stream.onaddtrack', stream);
-        const track = evt.track;
-        console.log('stream.onaddtrack(): track kind=', track.kind);
-        if (track.kind === 'video') {
-          //playVideo(remoteVideo, stream);
-        }
-        else if (track.kind === 'audio') {
-          //playVideo(remoteAudio, stream);
-          //remoteAudio.volume = 0.5;
-        }
-      };
-      stream.onremovetrack = function (evt) {
-        _logStream('stream.onremovetrack', stream);
-        //console.log('stream.onremovetrack():', evt);
-        const track = evt.track;
-        console.log('stream.onremovetrack(): track kind=', track.kind);
-        const tracks = stream.getTracks();
-        const trackCount = tracks.length;
-        console.log('onremovetrack tracks.lenght=' + trackCount);
-        /*
-        if (trackCount < 1) {
-          console.log('----remote stream stoped---');
-          remoteVideo.pause();
-          remoteVideo.srcObject = null;
-          remoteStream = null;
-        }
-        */
+      if (! stream.onaddtrack) { 
+        stream.onaddtrack = function (evt) {
+          _logStream('stream.onaddtrack', stream);
+          const track = evt.track;
+          console.log('stream.onaddtrack(): track kind=', track.kind);
+          if (track.kind === 'video') {
+            //playVideo(remoteVideo, stream);
+          }
+          else if (track.kind === 'audio') {
+            //playVideo(remoteAudio, stream);
+            //remoteAudio.volume = 0.5;
+          }
+        };
+      }
+      else {
+        console.log('stream.onaddtrack() Handler ALREADY EXIST');
+      }
 
-        removeRemoteTrack(track.kind, track, stream);
-      };
+      if (! stream.onremovetrack) {
+        stream.onremovetrack = function (evt) {
+          _logStream('stream.onremovetrack', stream);
+          //console.log('stream.onremovetrack():', evt);
+          const track = evt.track;
+          console.log('stream.onremovetrack(): track kind=', track.kind);
+          const tracks = stream.getTracks();
+          const trackCount = tracks.length;
+          console.log('onremovetrack tracks.lenght=' + trackCount);
+          /*
+          if (trackCount < 1) {
+            console.log('----remote stream stoped---');
+            remoteVideo.pause();
+            remoteVideo.srcObject = null;
+            remoteStream = null;
+          }
+          */
+
+          removeRemoteTrack(track.kind, track, stream);
+        };
+      }
+      else {
+        console.log('stream.onremovetrack() Handler ALREADY EXIST');        
+      }
     }
       
     if (withDataChannel) {
@@ -390,6 +430,7 @@
       const obj = JSON.parse(msg);
       if (obj.type === 'text') {
         console.log('text Message over DataChannel:', msg);
+        showTextData(obj.body);
         if (obj.body === 'hello') {
           sendData({ type: 'text', body: 'reply to hello'});
         }
@@ -566,12 +607,17 @@
     }
   }
 
+  function showTextData(text) {
+    textForDataChannel.innerText = textForDataChannel.innerHTML + text + String.fromCharCode(13);
+  }
+
   async function startVideo() {
     const option = {video: true, audio: true};
     const stream = await navigator.mediaDevices.getUserMedia(option)
     localStream = stream;
     localVideo.srcObject = localStream;
-    localVideo.play();
+    localVideo.play()
+    .catch( err => console.error('Play ERROR:', err) );
     localVideo.volume = 0;
 
     startCanvasAnimate();
@@ -637,11 +683,11 @@
 
   // ---- webAudio ---
   let audioCtx = null;
-  if (window.AudioContect) {
+  if (window.AudioContext) {
     audioCtx = new AudioContext();
   }
-  else if (window.webkitAudioContect) {
-    audioCtx = new webkitAudioContect();
+  else if (window.webkitAudioContext) {
+    audioCtx = new webkitAudioContext();
   }
   let audioStream = null;
   let audioNodes = [];
@@ -684,7 +730,8 @@
     audioNodes.push(mediaDestinationNode);
 
     localAudio.srcObject = audioStream;
-    localAudio.play();
+    localAudio.play()
+    .catch( err => console.error('Play ERROR:', err) );
     localAudio.volume = 0.0;
   }
 
