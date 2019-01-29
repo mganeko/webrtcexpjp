@@ -53,7 +53,6 @@ WebRTC ws-signaling 2019<br />
   let localStream = null;
 
   async function startVideo() {
-    //let stream = await webrtc.getLocalStream();
     const stream = await media.getLocalStream();
     if(stream) {
       playVideo(localVideo, stream);
@@ -64,7 +63,6 @@ WebRTC ws-signaling 2019<br />
 
   function stopVideo() {
     cleanupVideoElement(localVideo);
-    //webrtc.stopLocalStream();
     if (localStream) {
       media.stopLocalStream(localStream);
       localStream = null;

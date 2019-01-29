@@ -49,7 +49,6 @@ WebRTC Hand-signaling 2019<br />
   let localStream = null;
 
   async function startVideo() {
-    //let stream = await webrtc.getLocalStream();
     const stream = await media.getLocalStream();
     if(stream) {
       playVideo(localVideo, stream);
@@ -60,7 +59,6 @@ WebRTC Hand-signaling 2019<br />
 
   function stopVideo() {
     cleanupVideoElement(localVideo);
-    //webrtc.stopLocalStream();
     if (localStream) {
       media.stopLocalStream(localStream);
       localStream = null;
@@ -69,7 +67,6 @@ WebRTC Hand-signaling 2019<br />
   window.stopVideo = stopVideo;
 
   async function connect() {
-    //webrtc.startOffer();
     let offer = await webrtc.startOfferAsync(localStream).catch(err => {
       console.error('startOfferAsync() error:', err);
       return;
@@ -109,7 +106,6 @@ WebRTC Hand-signaling 2019<br />
           type : webrtc.SDPTYPE_OFFER,
           sdp : text,
       });
-      //webrtc.acceptOffer(offer);
       let answer = await webrtc.acceptOfferAsync(offer, localStream).catch(err => {
         console.error('acceptOfferAsync() error:', err);
         return;
