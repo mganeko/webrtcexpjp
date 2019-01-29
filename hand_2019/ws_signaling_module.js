@@ -19,15 +19,11 @@ export function connectSignaling(url) {
     switch(message.type){
       case 'offer': {
         console.log('Received offer ...');
-        //textToReceiveSdp.value = message.sdp;
-        //setOffer(message);
         receiveSdpFunc(message, message.type);
         break;
       }
       case 'answer': {
         console.log('Received answer ...');
-        //textToReceiveSdp.value = message.sdp;
-        //setAnswer(message);
         receiveSdpFunc(message, message.type);
         break;
       }
