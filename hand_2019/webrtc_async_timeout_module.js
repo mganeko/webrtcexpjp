@@ -118,7 +118,8 @@ const TIMEOUT_FOR_VANILLA = 2000;
 
 // WebRTCを利用する準備をする
 function prepareNewConnection() {
-  const pc_config = {"iceServers":[ {"urls":"stun:stun.webrtc.ecl.ntt.com:3478"} ]};
+  //const pc_config = {"iceServers":[ {"urls":"stun:stun.webrtc.ecl.ntt.com:3478"} ]}; // Cause long time for gathering ICE candidate in some network
+  const pc_config = {"iceServers":[]};
   const peer = new RTCPeerConnection(pc_config);
 
   // リモートのMediStreamTrackを受信した時
