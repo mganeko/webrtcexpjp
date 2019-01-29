@@ -31,10 +31,13 @@ WebRTC Hand-signaling 2019<br />
 -->
 <script type='module'>
   import * as webrtc from './webrtc_async_module.js';
-  //webrtc.setSendSdpHandler(sendSdp);
   webrtc.setRemoteVideoHandler(playRemoteVideo);
   webrtc.setCleanUpHandler(cleanUp);
-  webrtc.setIceType(webrtc.ICETYPE_VANILLA)
+  webrtc.setIceType(webrtc.ICETYPE_VANILLA);
+  //webrtc.setIceType(webrtc.ICETYPE_TRICKLE);
+  webrtc.setSendIceCandidateHandler(function () {
+    console.error('sendIceCandidate NOT SUPPORTED');
+  });
   
 
   const localVideo = document.getElementById('local_video');
