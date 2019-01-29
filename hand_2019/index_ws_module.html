@@ -149,10 +149,10 @@ WebRTC ws-signaling 2019<br />
   }
 
   function receiveSdp(message, type) {
-    if (type === webrtc.SDPTYPE_OFFER) {
+    if (type === 'offer') {
       webrtc.acceptOffer(message);
     }
-    else if (type === webrtc.SDPTYPE_ANSWER) {
+    else if (type === 'answer') {
       webrtc.setAnswer(message);
     }
     else {
