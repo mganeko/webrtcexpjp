@@ -254,9 +254,15 @@ async function makeSdpAsync(peer, stream, iceType, sdpType) {
         if ('setDirection' in videoTransceiver) {
           videoTransceiver.setDirection('recvonly');
         }
+        else {
+          videoTransceiver.direction = 'recvonly';
+        }
         let audioTransceiver = peer.addTransceiver('audio');
         if ('setDirection' in audioTransceiver) {
           audioTransceiver.setDirection('recvonly');
+        }
+        else {
+          audioTransceiver.direction = 'recvonly';
         }
       }
     }
