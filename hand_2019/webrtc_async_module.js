@@ -5,6 +5,7 @@ export const ICETYPE_TRICKLE = 'trickle';
 export const SDPTYPE_OFFER = 'offer';
 export const SDPTYPE_ANSWER = 'answer';
 
+// ローカルのカメラ映像、マイク音声を取得する
 export async function getLocalStream() {
   localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true}).catch(err => {
     console.error('mediaDevices.getUserMedia() error:', err);
@@ -13,6 +14,7 @@ export async function getLocalStream() {
   return localStream;
 }
 
+// ローカルのカメラ映像、マイク音声を停止する
 export function stopLocalStream() {
   if (localStream) {
     stopStream(localStream);
@@ -20,6 +22,7 @@ export function stopLocalStream() {
   }  
 }
 
+// Offerを開始する
 export async function startOffer() {
   if (peerConnection) {
     console.warn('peer already exist.');
@@ -49,30 +52,41 @@ export function closeConnection() {
   console.log('peerConnection is closed.');
 }
 
-let selectedIceType = ICETYPE_VANILLA;
+// ICEの方式をセットする
+let _selectedIceType = ICETYPE_VANILLA;
 export function setIceType(ice) {
-  selectedIceType = ice;
+  _selectedIceType = ice;
 }
 
 function getIceType() {
-  return selectedIceType;
+  return _selectedIceType;
 }
 
+// SDPを送るための関数をセットする
 let sendSdpFunc = null;
 export function setSendSdpHandler(handler) {
   sendSdpFunc = handler;
 }
 
+// ICE candidateを送るための関数をセットする
+let sendIceCandidateFunc = null;
+export function setSendIceCandidateHandler(handler) {
+  sendIceCandidateFunc = handler;
+}
+
+// 相手の映像を受け取った時の処理をセットする
 let remoteVideoFunc = null;
 export function setRemoteVideoHandler(handler) {
   remoteVideoFunc = handler;
 }
 
+// 相手の映像が終了した時の処理をセットする
 let cleanUpFunc = null;
 export function setCleanUpHandler(handler) {
   cleanUpFunc = handler;
 }
 
+// Offer側かを確認する
 export function isOfferSide() {
   if (peerConnection) {
     return true;
@@ -82,6 +96,7 @@ export function isOfferSide() {
   }
 }
 
+// 受け取ったAnswerをセットする
 export async function setAnswer(answer) {
   await peerConnection.setRemoteDescription(answer).catch(err => {
     console.error('setRemoteDescription(answer) error', err);
@@ -90,6 +105,7 @@ export async function setAnswer(answer) {
   console.log('setRemoteDescription(answer) success');
 }
 
+// Offerを受け取り、応答する
 export async function acceptOffer(offer) {
   const iceType = getIceType();
   peerConnection = prepareNewConnection();
@@ -105,8 +121,18 @@ export async function acceptOffer(offer) {
   });
   console.log('makeAnswerAsync() success');
 
-  //sendSdp(answer);
   sendSdpFunc(answer);
+}
+
+// ICE candaidate受信時にセットする
+export function addIceCandidate(candidate) {
+  if (peerConnection) {
+    peerConnection.addIceCandidate(candidate);
+  }
+  else {
+    console.error('PeerConnection not exist!');
+    return;
+  }
 }
 
 // ------- inner variable, function ------
@@ -215,7 +241,7 @@ async function makeSdpAsync(peer, stream, iceType, sdpType) {
       if (evt.candidate) {
         console.log(evt.candidate);
         if (iceType === ICETYPE_TRICKLE) {
-          //sendIceCandidate(evt.candidate);
+          sendIceCandidateFunc(evt.candidate);
         }
       } else {
         console.log('empty ice event');
