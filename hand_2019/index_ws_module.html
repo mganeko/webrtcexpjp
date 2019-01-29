@@ -31,9 +31,9 @@ WebRTC ws-signaling 2019<br />
 -->
 <script type='module'>
   import * as webrtc from './webrtc_async_module.js';
-  //webrtc.setSendSdpHandler(sendSdp);
   webrtc.setRemoteVideoHandler(playRemoteVideo);
   webrtc.setCleanUpHandler(cleanUp);
+  //webrtc.setIceType(webrtc.ICETYPE_VANILLA);
   webrtc.setIceType(webrtc.ICETYPE_TRICKLE);
   webrtc.setSendIceCandidateHandler(sendIceCandidate);
   
@@ -63,7 +63,6 @@ WebRTC ws-signaling 2019<br />
   window.stopVideo = stopVideo;
 
   async function connect() {
-    //webrtc.startOffer();
     let offer = await webrtc.startOfferAsync().catch(err => {
       console.error('startOfferAsync() error:', err);
       return;
@@ -77,9 +76,6 @@ WebRTC ws-signaling 2019<br />
   function hangUp(){
     connectionClose();
     signaling.sendClose();
-
-    //webrtc.closeConnection();
-    //cleanUp();
   }
   window.hangUp = hangUp;
 
@@ -102,7 +98,7 @@ WebRTC ws-signaling 2019<br />
           type : webrtc.SDPTYPE_ANSWER,
           sdp : text,
       });
-      webrtc.setAnswer(answer);
+      //webrtc.setAnswer(answer);
     }
     else {
       console.log('Received offer text...');
@@ -110,7 +106,7 @@ WebRTC ws-signaling 2019<br />
           type : webrtc.SDPTYPE_OFFER,
           sdp : text,
       });
-      webrtc.acceptOffer(offer);
+      //webrtc.acceptOffer(offer);
     }
 
     textToReceiveSdp.value ='';
