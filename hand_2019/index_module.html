@@ -34,6 +34,7 @@ WebRTC Hand-signaling 2019<br />
   handSignaling.setSendSdpHandler(sendSdp);
   handSignaling.setRemoteVideoHandler(playRemoteVideo);
   handSignaling.setCleanUpHandler(cleanUp);
+  handSignaling.setIceType(handSignaling.ICETYPE_VANILLA)
   
 
   const localVideo = document.getElementById('local_video');
@@ -79,7 +80,7 @@ WebRTC Hand-signaling 2019<br />
     if (handSignaling.isOfferSide()) {
       console.log('Received answer text...');
       const answer = new RTCSessionDescription({
-          type : 'answer',
+          type : handSignaling.SDPTYPE_ANSWER,
           sdp : text,
       });
       handSignaling.setAnswer(answer);
@@ -87,7 +88,7 @@ WebRTC Hand-signaling 2019<br />
     else {
       console.log('Received offer text...');
       const offer = new RTCSessionDescription({
-          type : 'offer',
+          type : handSignaling.SDPTYPE_OFFER,
           sdp : text,
       });
       handSignaling.acceptOffer(offer);

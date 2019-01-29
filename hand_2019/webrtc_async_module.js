@@ -1,12 +1,9 @@
 'use strict';
 
-const ICETYPE_VANILLA = 'vanilla';
-const ICETYPE_TRICKLE = 'trickle';
-const SDPTYPE_OFFER = 'offer';
-const SDPTYPE_ANSWER = 'answer';
-
-let localStream = null;
-let peerConnection = null;
+export const ICETYPE_VANILLA = 'vanilla';
+export const ICETYPE_TRICKLE = 'trickle';
+export const SDPTYPE_OFFER = 'offer';
+export const SDPTYPE_ANSWER = 'answer';
 
 export async function getLocalStream() {
   localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true}).catch(err => {
@@ -29,7 +26,7 @@ export async function startOffer() {
     return;
   }
 
-  const iceType = ICETYPE_VANILLA;
+  const iceType = getIceType();
   peerConnection = prepareNewConnection();
   let offer = await makeOfferAsync(peerConnection, localStream, iceType).catch(err =>{
     console.error('makeOfferAsync() error:', err);
@@ -52,6 +49,14 @@ export function closeConnection() {
   console.log('peerConnection is closed.');
 }
 
+let selectedIceType = ICETYPE_VANILLA;
+export function setIceType(ice) {
+  selectedIceType = ice;
+}
+
+function getIceType() {
+  return selectedIceType;
+}
 
 let sendSdpFunc = null;
 export function setSendSdpHandler(handler) {
@@ -86,7 +91,7 @@ export async function setAnswer(answer) {
 }
 
 export async function acceptOffer(offer) {
-  const iceType = ICETYPE_VANILLA;
+  const iceType = getIceType();
   peerConnection = prepareNewConnection();
   await peerConnection.setRemoteDescription(offer).catch(err => {
     console.error('setRemoteDescription(offer) error', err);
@@ -103,6 +108,11 @@ export async function acceptOffer(offer) {
   //sendSdp(answer);
   sendSdpFunc(answer);
 }
+
+// ------- inner variable, function ------
+let localStream = null;
+let peerConnection = null;
+
 
 // MediaStreamの各トラックを停止させる
 function stopStream(stream) {
