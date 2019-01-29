@@ -155,14 +155,14 @@ WebRTC ws-signaling 2019<br />
   }
 
   async function receiveSdp(message, type) {
-    if (type === 'offer') {
+    if (type ===  webrtc.SDPTYPE_OFFER) {
       let answer = await webrtc.acceptOfferAsync(message).catch(err => {
         console.error('acceptOfferAsync() error:', err);
         return;
       });
       sendSdp(answer);
     }
-    else if (type === 'answer') {
+    else if (type ===  webrtc.SDPTYPE_ANSWER) {
       webrtc.setAnswer(message);
     }
     else {

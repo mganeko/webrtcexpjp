@@ -30,11 +30,11 @@ WebRTC Hand-signaling 2019<br />
 <script type='text/javascript' src='./webrtc_async_ws.js'></script>
 -->
 <script type='module'>
-  import * as handSignaling from './webrtc_async_module.js';
-  //handSignaling.setSendSdpHandler(sendSdp);
-  handSignaling.setRemoteVideoHandler(playRemoteVideo);
-  handSignaling.setCleanUpHandler(cleanUp);
-  handSignaling.setIceType(handSignaling.ICETYPE_VANILLA)
+  import * as webrtc from './webrtc_async_module.js';
+  //webrtc.setSendSdpHandler(sendSdp);
+  webrtc.setRemoteVideoHandler(playRemoteVideo);
+  webrtc.setCleanUpHandler(cleanUp);
+  webrtc.setIceType(webrtc.ICETYPE_VANILLA)
   
 
   const localVideo = document.getElementById('local_video');
@@ -43,7 +43,7 @@ WebRTC Hand-signaling 2019<br />
   const textToReceiveSdp = document.getElementById('text_for_receive_sdp');
 
   async function startVideo() {
-    let stream = await handSignaling.getLocalStream();
+    let stream = await webrtc.getLocalStream();
     if(stream) {
       playVideo(localVideo, stream);
     }
@@ -52,13 +52,13 @@ WebRTC Hand-signaling 2019<br />
 
   function stopVideo() {
     cleanupVideoElement(localVideo);
-    handSignaling.stopLocalStream();
+    webrtc.stopLocalStream();
   }
   window.stopVideo = stopVideo;
 
   async function connect() {
-    //handSignaling.startOffer();
-    let offer = await handSignaling.startOfferAsync().catch(err => {
+    //webrtc.startOffer();
+    let offer = await webrtc.startOfferAsync().catch(err => {
       console.error('startOfferAsync() error:', err);
       return;
     });
@@ -69,7 +69,7 @@ WebRTC Hand-signaling 2019<br />
 
   // P2P通信を切断する
   function hangUp(){
-    handSignaling.closeConnection();
+    webrtc.closeConnection();
 
     cleanUp();
   }
@@ -83,22 +83,22 @@ WebRTC Hand-signaling 2019<br />
   // Receive remote SDPボタンが押されたらOffer側とAnswer側で処理を分岐
   async function onSdpText() {
     const text = textToReceiveSdp.value;
-    if (handSignaling.isOfferSide()) {
+    if (webrtc.isOfferSide()) {
       console.log('Received answer text...');
       const answer = new RTCSessionDescription({
-          type : handSignaling.SDPTYPE_ANSWER,
+          type : webrtc.SDPTYPE_ANSWER,
           sdp : text,
       });
-      handSignaling.setAnswer(answer);
+      webrtc.setAnswer(answer);
     }
     else {
       console.log('Received offer text...');
       const offer = new RTCSessionDescription({
-          type : handSignaling.SDPTYPE_OFFER,
+          type : webrtc.SDPTYPE_OFFER,
           sdp : text,
       });
-      //handSignaling.acceptOffer(offer);
-      let answer = await handSignaling.acceptOfferAsync(offer).catch(err => {
+      //webrtc.acceptOffer(offer);
+      let answer = await webrtc.acceptOfferAsync(offer).catch(err => {
         console.error('acceptOfferAsync() error:', err);
         return;
       });
