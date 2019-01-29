@@ -22,6 +22,7 @@ export function stopLocalStream() {
   }  
 }
 
+/*
 // Offerを開始する
 export async function startOffer() {
   if (peerConnection) {
@@ -37,6 +38,24 @@ export async function startOffer() {
   });
   console.log('makeOfferAsync() success');
   sendSdpFunc(offer);
+}
+*/
+
+// Offerを開始する
+// promiseを返す
+export async function startOfferAsync() {
+  if (peerConnection) {
+    console.warn('peer already exist.');
+    return;
+  }
+
+  const iceType = getIceType();
+  peerConnection = prepareNewConnection();
+  let offer = await makeOfferAsync(peerConnection, localStream, iceType).catch(err =>{
+    console.error('makeOfferAsync() error:', err);
+    return;
+  });
+  return offer;
 }
 
 // P2P通信を切断する
@@ -62,11 +81,13 @@ function getIceType() {
   return _selectedIceType;
 }
 
+/*
 // SDPを送るための関数をセットする
 let sendSdpFunc = null;
 export function setSendSdpHandler(handler) {
   sendSdpFunc = handler;
 }
+*/
 
 // ICE candidateを送るための関数をセットする
 let sendIceCandidateFunc = null;
@@ -105,6 +126,7 @@ export async function setAnswer(answer) {
   console.log('setRemoteDescription(answer) success');
 }
 
+/*
 // Offerを受け取り、応答する
 export async function acceptOffer(offer) {
   const iceType = getIceType();
@@ -122,6 +144,25 @@ export async function acceptOffer(offer) {
   console.log('makeAnswerAsync() success');
 
   sendSdpFunc(answer);
+}
+*/
+
+// Offerを受け取り、応答する
+// promiseを返す
+export async function acceptOfferAsync(offer) {
+  const iceType = getIceType();
+  peerConnection = prepareNewConnection();
+  await peerConnection.setRemoteDescription(offer).catch(err => {
+    console.error('setRemoteDescription(offer) error', err);
+    return;
+  });
+  console.log('setRemoteDescription(offer) success');
+
+  let answer = await makeAnswerAsync(peerConnection, localStream, iceType).catch(err => {
+    console.error('makeAnswerAsync() error:', err);
+    return;
+  });
+  return answer;
 }
 
 // ICE candaidate受信時にセットする

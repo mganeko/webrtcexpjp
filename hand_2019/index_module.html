@@ -31,7 +31,7 @@ WebRTC Hand-signaling 2019<br />
 -->
 <script type='module'>
   import * as handSignaling from './webrtc_async_module.js';
-  handSignaling.setSendSdpHandler(sendSdp);
+  //handSignaling.setSendSdpHandler(sendSdp);
   handSignaling.setRemoteVideoHandler(playRemoteVideo);
   handSignaling.setCleanUpHandler(cleanUp);
   handSignaling.setIceType(handSignaling.ICETYPE_VANILLA)
@@ -56,8 +56,14 @@ WebRTC Hand-signaling 2019<br />
   }
   window.stopVideo = stopVideo;
 
-  function connect() {
-    handSignaling.startOffer();
+  async function connect() {
+    //handSignaling.startOffer();
+    let offer = await handSignaling.startOfferAsync().catch(err => {
+      console.error('startOfferAsync() error:', err);
+      return;
+    });
+
+    sendSdp(offer);
   }
   window.connect = connect;
 
@@ -75,7 +81,7 @@ WebRTC Hand-signaling 2019<br />
   }
 
   // Receive remote SDPボタンが押されたらOffer側とAnswer側で処理を分岐
-  function onSdpText() {
+  async function onSdpText() {
     const text = textToReceiveSdp.value;
     if (handSignaling.isOfferSide()) {
       console.log('Received answer text...');
@@ -91,7 +97,12 @@ WebRTC Hand-signaling 2019<br />
           type : handSignaling.SDPTYPE_OFFER,
           sdp : text,
       });
-      handSignaling.acceptOffer(offer);
+      //handSignaling.acceptOffer(offer);
+      let answer = await handSignaling.acceptOfferAsync(offer).catch(err => {
+        console.error('acceptOfferAsync() error:', err);
+        return;
+      });
+      sendSdp(answer);
     }
 
     textToReceiveSdp.value ='';
