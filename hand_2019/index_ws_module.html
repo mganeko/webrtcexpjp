@@ -1,0 +1,169 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>WebRTC ws-signaling 2019</title>
+</head>
+
+<body>
+WebRTC ws-signaling 2019<br />
+<button type="button" onclick="startVideo();">Start Video</button>
+<button type="button" onclick="stopVideo();">Stop Video</button>
+&nbsp;
+<button type="button" onclick="connect();">Connect</button>
+<button type="button" onclick="hangUp();">Hang Up</button>
+<div>
+  <video id="local_video" autoplay muted=true style="width: 160px; height: 120px; border: 1px solid black;"></video>
+  <video id="remote_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+</div>
+<p>SDP to send:<br />
+  <textarea id="text_for_send_sdp" rows="5" cols="60" readonly="readonly">SDP to send</textarea>
+</p>
+<p>SDP to receive:&nbsp;
+  <button type="button" onclick="onSdpText();">Receive remote SDP</button><br />
+  <textarea id="text_for_receive_sdp" rows="5" cols="60"></textarea>
+</p>
+
+<!-- -->
+<!--
+<script type='text/javascript' src='./webrtc_async_ws.js'></script>
+-->
+<script type='module'>
+  import * as webrtc from './webrtc_async_module.js';
+  webrtc.setSendSdpHandler(sendSdp);
+  webrtc.setRemoteVideoHandler(playRemoteVideo);
+  webrtc.setCleanUpHandler(cleanUp);
+  webrtc.setIceType(webrtc.ICETYPE_TRICKLE);
+  webrtc.setSendIceCandidateHandler(sendIceCandidate);
+  
+  import * as signaling from './ws_signaling_module.js';
+  signaling.setRceiveSdpHandeler(receiveSdp);
+  signaling.setReceiveIceCandidateHandeler(receiveIceCandidate);
+  signaling.setCloseHander(connectionClose);
+  signaling.connectSignaling('ws://localhost:3001/');
+
+  const localVideo = document.getElementById('local_video');
+  const remoteVideo = document.getElementById('remote_video');
+  const textForSendSdp = document.getElementById('text_for_send_sdp');
+  const textToReceiveSdp = document.getElementById('text_for_receive_sdp');
+
+  async function startVideo() {
+    let stream = await webrtc.getLocalStream();
+    if(stream) {
+      playVideo(localVideo, stream);
+    }
+  }
+  window.startVideo = startVideo;
+
+  function stopVideo() {
+    cleanupVideoElement(localVideo);
+    webrtc.stopLocalStream();
+  }
+  window.stopVideo = stopVideo;
+
+  function connect() {
+    webrtc.startOffer();
+  }
+  window.connect = connect;
+
+  // P2P通信を切断する
+  function hangUp(){
+    connectionClose();
+    signaling.sendClose();
+
+    //webrtc.closeConnection();
+    //cleanUp();
+  }
+  window.hangUp = hangUp;
+
+  function cleanUp() {
+    cleanupVideoElement(remoteVideo);
+    textForSendSdp.value = '';
+  }
+
+  function connectionClose() {
+    webrtc.closeConnection();
+    cleanUp();
+  }
+
+  // Receive remote SDPボタンが押されたらOffer側とAnswer側で処理を分岐
+  function onSdpText() {
+    const text = textToReceiveSdp.value;
+    if (webrtc.isOfferSide()) {
+      console.log('Received answer text...');
+      const answer = new RTCSessionDescription({
+          type : webrtc.SDPTYPE_ANSWER,
+          sdp : text,
+      });
+      webrtc.setAnswer(answer);
+    }
+    else {
+      console.log('Received offer text...');
+      const offer = new RTCSessionDescription({
+          type : webrtc.SDPTYPE_OFFER,
+          sdp : text,
+      });
+      webrtc.acceptOffer(offer);
+    }
+
+    textToReceiveSdp.value ='';
+  }
+  window.onSdpText = onSdpText;
+
+  // Videoの再生を開始する
+  async function playVideo(element, stream) {
+    if (element.srcObject === stream) {
+      console.warn('same stream, so ignore');
+      return;
+    };
+
+    element.srcObject = stream;
+    await element.play().catch(
+      err => console.error('playVideo() error:', err)
+    );
+  }
+
+  // ビデオエレメントを初期化する
+  function cleanupVideoElement(element) {
+    element.pause();
+    element.srcObject = null;
+  }
+
+  // 手動シグナリングのための処理を追加する
+  function sendSdp(sessionDescription) {
+    console.log('---sending sdp ---');
+    textForSendSdp.value = sessionDescription.sdp;
+    //textForSendSdp.focus();
+    //textForSendSdp.select();
+
+    signaling.sendSdp(sessionDescription);
+  }
+
+  function playRemoteVideo(stream) {
+    playVideo(remoteVideo, stream)
+  }
+
+  function sendIceCandidate(candidate) {
+    signaling.sendIceCandidate(candidate);
+  }
+
+  function receiveSdp(message, type) {
+    if (type === webrtc.SDPTYPE_OFFER) {
+      webrtc.acceptOffer(message);
+    }
+    else if (type === webrtc.SDPTYPE_ANSWER) {
+      webrtc.setAnswer(message);
+    }
+    else {
+      console.error('unknown SDP type=' + type);
+    }
+  }
+
+  function receiveIceCandidate(candidate) {
+    webrtc.addIceCandidate(candidate);
+  }
+</script>
+
+</body>
+</html>
