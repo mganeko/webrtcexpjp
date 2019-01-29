@@ -5,45 +5,9 @@ export const ICETYPE_TRICKLE = 'trickle';
 export const SDPTYPE_OFFER = 'offer';
 export const SDPTYPE_ANSWER = 'answer';
 
-// ローカルのカメラ映像、マイク音声を取得する
-export async function getLocalStream() {
-  localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true}).catch(err => {
-    console.error('mediaDevices.getUserMedia() error:', err);
-    return null;
-  });
-  return localStream;
-}
-
-// ローカルのカメラ映像、マイク音声を停止する
-export function stopLocalStream() {
-  if (localStream) {
-    stopStream(localStream);
-    localStream = null;
-  }  
-}
-
-/*
-// Offerを開始する
-export async function startOffer() {
-  if (peerConnection) {
-    console.warn('peer already exist.');
-    return;
-  }
-
-  const iceType = getIceType();
-  peerConnection = prepareNewConnection();
-  let offer = await makeOfferAsync(peerConnection, localStream, iceType).catch(err =>{
-    console.error('makeOfferAsync() error:', err);
-    return;
-  });
-  console.log('makeOfferAsync() success');
-  sendSdpFunc(offer);
-}
-*/
-
 // Offerを開始する
 // promiseを返す
-export async function startOfferAsync() {
+export async function startOfferAsync(stream) {
   if (peerConnection) {
     console.warn('peer already exist.');
     return;
@@ -51,7 +15,7 @@ export async function startOfferAsync() {
 
   const iceType = getIceType();
   peerConnection = prepareNewConnection();
-  let offer = await makeOfferAsync(peerConnection, localStream, iceType).catch(err =>{
+  let offer = await makeOfferAsync(peerConnection, stream, iceType).catch(err =>{
     console.error('makeOfferAsync() error:', err);
     return;
   });
@@ -80,14 +44,6 @@ export function setIceType(ice) {
 function getIceType() {
   return _selectedIceType;
 }
-
-/*
-// SDPを送るための関数をセットする
-let sendSdpFunc = null;
-export function setSendSdpHandler(handler) {
-  sendSdpFunc = handler;
-}
-*/
 
 // ICE candidateを送るための関数をセットする
 let sendIceCandidateFunc = null;
@@ -126,30 +82,9 @@ export async function setAnswer(answer) {
   console.log('setRemoteDescription(answer) success');
 }
 
-/*
-// Offerを受け取り、応答する
-export async function acceptOffer(offer) {
-  const iceType = getIceType();
-  peerConnection = prepareNewConnection();
-  await peerConnection.setRemoteDescription(offer).catch(err => {
-    console.error('setRemoteDescription(offer) error', err);
-    return;
-  });
-  console.log('setRemoteDescription(offer) success');
-
-  let answer = await makeAnswerAsync(peerConnection, localStream, iceType).catch(err => {
-    console.error('makeAnswerAsync() error:', err);
-    return;
-  });
-  console.log('makeAnswerAsync() success');
-
-  sendSdpFunc(answer);
-}
-*/
-
 // Offerを受け取り、応答する
 // promiseを返す
-export async function acceptOfferAsync(offer) {
+export async function acceptOfferAsync(offer, stream) {
   const iceType = getIceType();
   peerConnection = prepareNewConnection();
   await peerConnection.setRemoteDescription(offer).catch(err => {
@@ -158,7 +93,7 @@ export async function acceptOfferAsync(offer) {
   });
   console.log('setRemoteDescription(offer) success');
 
-  let answer = await makeAnswerAsync(peerConnection, localStream, iceType).catch(err => {
+  let answer = await makeAnswerAsync(peerConnection, stream, iceType).catch(err => {
     console.error('makeAnswerAsync() error:', err);
     return;
   });
@@ -177,14 +112,7 @@ export function addIceCandidate(candidate) {
 }
 
 // ------- inner variable, function ------
-let localStream = null;
 let peerConnection = null;
-
-
-// MediaStreamの各トラックを停止させる
-function stopStream(stream) {
-  stream.getTracks().forEach(track => track.stop());
-}
 
 // WebRTCを利用する準備をする
 function prepareNewConnection() {
@@ -194,7 +122,6 @@ function prepareNewConnection() {
   // リモートのMediStreamTrackを受信した時
   peer.ontrack = evt => {
     console.log('-- peer.ontrack()');
-    //playVideo(remoteVideo, evt.streams[0]);
     remoteVideoFunc(evt.streams[0]);
   };
 
@@ -272,7 +199,7 @@ async function makeSdpAsync(peer, stream, iceType, sdpType) {
     // --- add stream ---
     if (stream) {
       console.log('Adding local stream...');
-      localStream.getTracks().forEach(track => peer.addTrack(track, stream));
+      stream.getTracks().forEach(track => peer.addTrack(track, stream));
     } else {
       console.warn('no local stream, but continue.');
     }

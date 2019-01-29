@@ -43,27 +43,37 @@ WebRTC ws-signaling 2019<br />
   signaling.setCloseHander(connectionClose);
   signaling.connectSignaling('ws://localhost:3001/');
 
+  import * as media from './media_module.js';
+
   const localVideo = document.getElementById('local_video');
   const remoteVideo = document.getElementById('remote_video');
   const textForSendSdp = document.getElementById('text_for_send_sdp');
   const textToReceiveSdp = document.getElementById('text_for_receive_sdp');
 
+  let localStream = null;
+
   async function startVideo() {
-    let stream = await webrtc.getLocalStream();
+    //let stream = await webrtc.getLocalStream();
+    const stream = await media.getLocalStream();
     if(stream) {
       playVideo(localVideo, stream);
+      localStream = stream;
     }
   }
   window.startVideo = startVideo;
 
   function stopVideo() {
     cleanupVideoElement(localVideo);
-    webrtc.stopLocalStream();
+    //webrtc.stopLocalStream();
+    if (localStream) {
+      media.stopLocalStream(localStream);
+      localStream = null;
+    }
   }
   window.stopVideo = stopVideo;
 
   async function connect() {
-    let offer = await webrtc.startOfferAsync().catch(err => {
+    let offer = await webrtc.startOfferAsync(localStream).catch(err => {
       console.error('startOfferAsync() error:', err);
       return;
     });
@@ -152,7 +162,7 @@ WebRTC ws-signaling 2019<br />
 
   async function receiveSdp(message, type) {
     if (type ===  webrtc.SDPTYPE_OFFER) {
-      let answer = await webrtc.acceptOfferAsync(message).catch(err => {
+      let answer = await webrtc.acceptOfferAsync(message, localStream).catch(err => {
         console.error('acceptOfferAsync() error:', err);
         return;
       });
