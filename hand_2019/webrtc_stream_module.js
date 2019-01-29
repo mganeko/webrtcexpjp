@@ -151,7 +151,8 @@ let peerConnection = null;
 
 // WebRTCを利用する準備をする
 function prepareNewConnection() {
-  const pc_config = {"iceServers":[ {"urls":"stun:stun.webrtc.ecl.ntt.com:3478"} ]};
+  //const pc_config = {"iceServers":[ {"urls":"stun:stun.webrtc.ecl.ntt.com:3478"} ]};
+  const pc_config = {sdpSemantics : "unified-plan"};
   const peer = new RTCPeerConnection(pc_config);
 
   // リモートのMediStreamTrackを受信した時
@@ -207,7 +208,7 @@ async function makeSdpAsync(peer, stream, iceType, sdpType) {
       if (sendingOffer) {
         sendingOffer = false;
 
-        let offer = await peer.createOffer().catch(err =>{
+        let offer = await peer.createOffer(options).catch(err =>{
           console.error('createOffer error:', err);
           reject(err);
           return;
@@ -237,12 +238,27 @@ async function makeSdpAsync(peer, stream, iceType, sdpType) {
       }
     }
 
+    let options = {};
     // --- add stream ---
     if (stream) {
       console.log('Adding local stream...');
       stream.getTracks().forEach(track => peer.addTrack(track, stream));
     } else {
-      console.warn('no local stream, but continue.');
+      console.log('no local stream, try recvonly');
+      console.log('-- try recvonly ---');
+      options = { offerToReceiveAudio: true, offerToReceiveVideo: true };
+
+      if ('addTransceiver' in peer) {
+        console.log('-- use addTransceiver() for recvonly --');
+        let videoTransceiver = peer.addTransceiver('video');
+        if ('setDirection' in videoTransceiver) {
+          videoTransceiver.setDirection('recvonly');
+        }
+        let audioTransceiver = peer.addTransceiver('audio');
+        if ('setDirection' in audioTransceiver) {
+          audioTransceiver.setDirection('recvonly');
+        }
+      }
     }
 
     /*
@@ -265,7 +281,7 @@ async function makeSdpAsync(peer, stream, iceType, sdpType) {
 
     // --- answer ----
     if (sdpType === SDPTYPE_ANSWER) {
-      let answer = await peer.createAnswer().catch(err =>{
+      let answer = await peer.createAnswer(options).catch(err =>{
         console.error('createAnswer() error:', err);
         reject(err);
         return;
