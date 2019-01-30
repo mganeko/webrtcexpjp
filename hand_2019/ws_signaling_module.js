@@ -14,8 +14,9 @@ export function connectSignaling(url) {
       console.error('ws onerror() ERR:', err);
   };
   ws.onmessage = (evt) => {
-    console.log('ws onmessage() data.type:', evt.data.type);
+    //console.log('ws onmessage() data.type:', evt.data.type);
     const message = JSON.parse(evt.data);
+    console.log('ws onmessage() message.type:', message.type);
     switch(message.type){
       case 'offer': {
         console.log('Received offer ...');
