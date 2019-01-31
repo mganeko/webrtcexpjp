@@ -177,12 +177,15 @@ WebRTC ws-signaling with ScreenCapture 2019<br />
     }
     if (isVideoAvailable(remoteScreenVideo)) {
       playVideo(remoteScreenVideo, stream);
+      stream.onremovetrack = (evt) => {
+        console.log('--onremovetrack() for remoteScreen')
+        cleanupVideoElement(remoteScreenVideo);
+      }
       return;
     }
   }
 
   function isVideoAvailable(element) {
-
     if (! element.srcObject) {
       return true;
     }
@@ -232,12 +235,17 @@ WebRTC ws-signaling with ScreenCapture 2019<br />
   }
   window.addScreen = addScreen;
 
-  function removeScreen() {
+  async function removeScreen() {
     if (localScreenStream) {
+      let offer = await webrtc.removeStreamAsync(localScreenStream);
+      sendSdp(offer);
+
       screen.stopLocalStream(localScreenStream);
       localScreenStream = null;
     }
     cleanupVideoElement(localScreenVideo);
+
+
   }
   window.removeScreen = removeScreen;
 

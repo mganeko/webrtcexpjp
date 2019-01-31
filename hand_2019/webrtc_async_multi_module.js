@@ -35,7 +35,7 @@ export function closeConnection() {
   console.log('peerConnection is closed.');
 }
 
-// Offerを開始する
+// Streamを追加しOfferを開始する
 // promiseを返す
 export async function startAddStreamAsync(stream) {
   if (! peerConnection) {
@@ -49,6 +49,30 @@ export async function startAddStreamAsync(stream) {
     console.error('makeOfferAsync() error:', err);
     return;
   });
+  return offer;
+}
+
+// streamを除去して、offerを開始する
+// promiseを返す
+export async function removeStreamAsync(stream) {
+  stream.getTracks().forEach(track => {
+    const senders = peerConnection.getSenders().filter(sender => sender.track === track);
+    const sender = senders[0];
+    peerConnection.removeTrack(sender);
+  });
+
+  let offer = await peerConnection.createOffer().catch(err =>{
+    console.error('createOffer error:', err);
+    return;
+  });
+  console.log('createOffer() succsess');
+
+  await peerConnection.setLocalDescription(offer).catch(err =>{
+    console.error('setLocalDescription(offer) error:', err);
+    return;
+  });
+  console.log('setLocalDescription(offer) succsess');
+
   return offer;
 }
 
