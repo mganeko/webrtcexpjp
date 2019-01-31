@@ -52,6 +52,7 @@ WebRTC ws-signaling with ScreenCapture 2019<br />
   //const textToReceiveSdp = document.getElementById('text_for_receive_sdp');
 
   let localStream = null;
+  let waitingStream = null;
 
   // --- for Screen
   let localScreenStream = null;
@@ -63,6 +64,7 @@ WebRTC ws-signaling with ScreenCapture 2019<br />
     if(stream) {
       playVideo(localVideo, stream);
       localStream = stream;
+      waitingStream = stream;
     }
   }
   window.startVideo = startVideo;
@@ -77,10 +79,11 @@ WebRTC ws-signaling with ScreenCapture 2019<br />
   window.stopVideo = stopVideo;
 
   async function connect() {
-    let offer = await webrtc.startOfferAsync(localStream).catch(err => {
+    let offer = await webrtc.startOfferAsync(waitingStream).catch(err => {
       console.error('startOfferAsync() error:', err);
       return;
     });
+    waitingStream = null;
 
     sendSdp(offer);
   }
@@ -194,10 +197,11 @@ WebRTC ws-signaling with ScreenCapture 2019<br />
 
   async function receiveSdp(message, type) {
     if (type ===  webrtc.SDPTYPE_OFFER) {
-      let answer = await webrtc.acceptOfferAsync(message, localStream).catch(err => {
+      let answer = await webrtc.acceptOfferAsync(message, waitingStream).catch(err => {
         console.error('acceptOfferAsync() error:', err);
         return;
       });
+      waitingStream = null;
       sendSdp(answer);
     }
     else if (type ===  webrtc.SDPTYPE_ANSWER) {
