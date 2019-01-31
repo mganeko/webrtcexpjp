@@ -50,7 +50,7 @@ export function connectSignaling(url) {
 
 export function sendSdp(sessionDescription) {
   const message = JSON.stringify(sessionDescription);
-  console.log('---sending SDP type=' + message.type);
+  console.log('---sending SDP type=' + sessionDescription.type);
   ws.send(message);
 }
 
