@@ -37,17 +37,29 @@ WebRTC ws-signaling with ScreenCapture 2019<br />
   webrtc.setIceType(webrtc.ICETYPE_TRICKLE);
   webrtc.setSendIceCandidateHandler(sendIceCandidate);
   
+  /*
+  // --- WebSocket signaling --
   import * as signaling from './ws_signaling_module.js';
+  const signalingChannel = 'ws://localhost:3001/';
+  // --- WebSocket signaling --
+  */
+
+  // --- WebSocket signaling --
+  import * as signaling from './bc_signaling_module.js';
+  const signalingChannel = '_test_channel_';
+  // --- WebSocket signaling --
+
   signaling.setRceiveSdpHandeler(receiveSdp);
   signaling.setReceiveIceCandidateHandeler(receiveIceCandidate);
   signaling.setCloseHander(connectionClose);
-  signaling.connectSignaling('ws://localhost:3001/');
+  signaling.connectSignaling(signalingChannel);
 
   import * as media from './media_module.js';
   import * as screen from './screen_module.js';
 
   const localVideo = document.getElementById('local_video');
   const remoteVideo = document.getElementById('remote_video');
+  remoteVideo.muted = true;
   //const textForSendSdp = document.getElementById('text_for_send_sdp');
   //const textToReceiveSdp = document.getElementById('text_for_receive_sdp');
 
@@ -58,6 +70,7 @@ WebRTC ws-signaling with ScreenCapture 2019<br />
   let localScreenStream = null;
   const localScreenVideo = document.getElementById('local_screen_video');
   const remoteScreenVideo = document.getElementById('remote_screen_video');
+  remoteScreenVideo.muted = true;
 
   async function startVideo() {
     const stream = await media.getLocalStream();
