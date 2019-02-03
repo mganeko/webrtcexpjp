@@ -10,6 +10,9 @@
 WebRTC ws-signaling with ScreenCapture 2019<br />
 <button type="button" onclick="startVideo();">Start Video</button>
 <button type="button" onclick="stopVideo();">Stop Video</button>
+<!--
+<button type="button" onclick="enableRemoteAudio();">remote Audio ON</button>
+-->
 &nbsp;
 <button type="button" onclick="connect();">Connect</button>
 <button type="button" onclick="hangUp();">Hang Up</button>
@@ -206,6 +209,17 @@ WebRTC ws-signaling with ScreenCapture 2019<br />
       return false;
     }
   }
+
+  function enableRemoteAudio() {
+    //remoteVideo.removeAttribute('muted');
+    remoteVideo.muted = false;
+    remoteVideo.volume = 1.0;
+
+    //remoteScreenVideo.removeAttribute('muted');
+    remoteScreenVideo.muted = false;
+    remoteScreenVideo.volume = 1.0;
+  }
+  window.enableRemoteAudio = enableRemoteAudio;
 
   function sendIceCandidate(candidate) {
     signaling.sendIceCandidate(candidate);
