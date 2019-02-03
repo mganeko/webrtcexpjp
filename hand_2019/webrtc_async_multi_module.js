@@ -204,6 +204,7 @@ function makeAnswerAsync(peer, stream, iceType) {
 // returning Promise
 async function makeSdpAsync(peer, stream, iceType, sdpType) {
   let sendingOffer = false;
+  //let offerOptions = {};
   if (sdpType === SDPTYPE_OFFER) {
     sendingOffer = true;
   }
@@ -246,7 +247,27 @@ async function makeSdpAsync(peer, stream, iceType, sdpType) {
       console.log('Adding local stream...');
       stream.getTracks().forEach(track => peer.addTrack(track, stream));
     } else {
-      console.warn('no local stream, but continue.');
+      //console.warn('no local stream, but continue.');
+      console.warn('no local stream, try recvonly');
+      if ('addTransceiver' in peer) {
+        console.log('-- use addTransceiver() for recvonly --');
+        let videoTransceiver = peer.addTransceiver('video');
+        if ('setDirection' in videoTransceiver) {
+          console.log('use videoTransceiver.setDirection()');
+          videoTransceiver.setDirection('recvonly');
+        }
+        else {
+          videoTransceiver.direction = 'recvonly';
+          console.log('use videoTransceiver.direction');
+        }
+        let audioTransceiver = peer.addTransceiver('audio');
+        if ('setDirection' in audioTransceiver) {
+          audioTransceiver.setDirection('recvonly');
+        }
+        else {
+          audioTransceiver.direction = 'recvonly';
+        }
+      }
     }
 
     // ICE Candidateを収集したときのイベント
