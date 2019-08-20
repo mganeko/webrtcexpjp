@@ -20,7 +20,10 @@
     navigator.mediaDevices.getUserMedia({video: true, audio: false})
     .then(function (stream) { // success
       localStream = stream;
-      localVideo.src = window.URL.createObjectURL(localStream);
+      localVideo.srcObject = stream
+      localVideo.onloadedmetadata = function (e) {
+        localVideo.play();
+      };
     }).catch(function (error) { // error
       console.error('mediaDevice.getUserMedia() error:', error);
       return;
